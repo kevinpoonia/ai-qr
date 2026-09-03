@@ -10,6 +10,7 @@ import type { FeedbackMode } from "@/lib/types";
 export default function Dashboard() {
   const [googleReviewsUrl, setGoogleReviewsUrl] = useState("");
   const [businessName, setBusinessName] = useState("");
+  const [location, setLocation] = useState("");
   const [slug, setSlug] = useState("");
   const [feedbackMode, setFeedbackMode] = useState<FeedbackMode>("gated");
   const [showSuccess, setShowSuccess] = useState(false);
@@ -35,6 +36,7 @@ export default function Dashboard() {
         const data = await res.json();
         setGoogleReviewsUrl(data.googleReviewsUrl ?? "");
         setBusinessName(data.businessName ?? "");
+        setLocation(data.location ?? "");
         setSlug(data.slug ?? "");
         setFeedbackMode(data.feedbackMode === "open" ? "open" : "gated");
       } catch (err) {
@@ -68,7 +70,7 @@ export default function Dashboard() {
       const res = await fetch("/api/settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ businessName, googleReviewsUrl, feedbackMode }),
+        body: JSON.stringify({ businessName, location, googleReviewsUrl, feedbackMode }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -249,6 +251,22 @@ export default function Dashboard() {
                     placeholder="Your Business Name"
                     className="w-full bg-slate-50 border-2 border-slate-50 rounded-2xl px-6 py-5 text-lg font-medium focus:bg-white focus:border-purple-200 focus:ring-4 focus:ring-purple-50 outline-none transition-all placeholder:text-slate-300"
                   />
+                </div>
+
+                <div className="space-y-4">
+                  <label className="flex items-center gap-2 text-sm font-black uppercase tracking-widest text-slate-400">
+                    Location (city / area)
+                  </label>
+                  <input
+                    type="text"
+                    value={location}
+                    onChange={(e) => setLocation(e.target.value)}
+                    placeholder="e.g. Austin, TX"
+                    className="w-full bg-slate-50 border-2 border-slate-50 rounded-2xl px-6 py-5 text-lg font-medium focus:bg-white focus:border-purple-200 focus:ring-4 focus:ring-purple-50 outline-none transition-all placeholder:text-slate-300"
+                  />
+                  <p className="text-sm text-slate-400 font-medium leading-relaxed">
+                    Mentioned in the review drafts customers get — helps local SEO.
+                  </p>
                 </div>
 
                 <div className="space-y-4">

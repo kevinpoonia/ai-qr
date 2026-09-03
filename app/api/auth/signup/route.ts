@@ -10,8 +10,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const { businessName, email, password } = body as Record<string, unknown>;
+  const { businessName, location, email, password } = body as Record<string, unknown>;
   const cleanBusinessName = typeof businessName === "string" ? businessName.trim() : "";
+  const cleanLocation = typeof location === "string" ? location.trim() : "";
   const cleanEmail = typeof email === "string" ? email.trim().toLowerCase() : "";
   const cleanPassword = typeof password === "string" ? password : "";
 
@@ -40,7 +41,8 @@ export async function POST(request: Request) {
   const { businessId, userId, slug } = createBusinessWithOwner(
     cleanBusinessName,
     cleanEmail,
-    cleanPassword
+    cleanPassword,
+    cleanLocation
   );
 
   const token = await createSessionToken(secret, { userId, businessId, role: "owner" });

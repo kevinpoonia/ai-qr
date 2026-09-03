@@ -34,7 +34,7 @@ export default function QRPage() {
     const fetchReview = async () => {
         setIsLoading(true);
         try {
-            const res = await fetch("/api/generate-review");
+            const res = await fetch(`/api/public/${slug}/generate-review`);
             const data = await res.json();
             setReview(data.review);
         } catch (error) {

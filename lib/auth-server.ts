@@ -66,14 +66,15 @@ export function setUserPassword(userId: number, password: string): void {
 export function createBusinessWithOwner(
   businessName: string,
   email: string,
-  password: string
+  password: string,
+  location: string = ""
 ): { businessId: number; userId: number; slug: string } {
   const db = getDb();
   const slug = generateUniqueSlug(slugify(businessName));
 
   const bizResult = db
-    .prepare("INSERT INTO businesses (name, slug) VALUES (?, ?)")
-    .run(businessName, slug);
+    .prepare("INSERT INTO businesses (name, slug, location) VALUES (?, ?, ?)")
+    .run(businessName, slug, location);
   const businessId = Number(bizResult.lastInsertRowid);
 
   const { hash, salt } = hashPassword(password);

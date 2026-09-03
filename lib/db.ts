@@ -13,6 +13,13 @@ declare global {
   var __aiQrDb: DatabaseSync | undefined;
 }
 
+function ensureColumn(db: DatabaseSync, table: string, column: string, definition: string) {
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
+  if (!cols.some((c) => c.name === column)) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  }
+}
+
 function createDb(): DatabaseSync {
   const db = new DatabaseSync(dbPath);
   db.exec("PRAGMA foreign_keys = ON;");
@@ -22,6 +29,7 @@ function createDb(): DatabaseSync {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
       slug TEXT NOT NULL UNIQUE,
+      location TEXT NOT NULL DEFAULT '',
       google_reviews_url TEXT NOT NULL DEFAULT '',
       feedback_mode TEXT NOT NULL DEFAULT 'gated',
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -76,7 +84,16 @@ function createDb(): DatabaseSync {
     );
 
     CREATE INDEX IF NOT EXISTS idx_events_business_type_created ON events(business_id, type, created_at);
+
+    CREATE TABLE IF NOT EXISTS review_rotations (
+      business_id INTEGER PRIMARY KEY,
+      order_json TEXT NOT NULL,
+      cursor INTEGER NOT NULL DEFAULT 0,
+      FOREIGN KEY (business_id) REFERENCES businesses(id) ON DELETE CASCADE
+    );
   `);
+
+  ensureColumn(db, "businesses", "location", "TEXT NOT NULL DEFAULT ''");
 
   return db;
 }

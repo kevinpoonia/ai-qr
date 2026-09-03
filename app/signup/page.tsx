@@ -8,6 +8,7 @@ import { Sparkles, Loader2 } from "lucide-react";
 export default function SignupPage() {
   const router = useRouter();
   const [businessName, setBusinessName] = useState("");
+  const [location, setLocation] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -21,7 +22,7 @@ export default function SignupPage() {
       const res = await fetch("/api/auth/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ businessName, email, password }),
+        body: JSON.stringify({ businessName, location, email, password }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -54,6 +55,13 @@ export default function SignupPage() {
             onChange={(e) => setBusinessName(e.target.value)}
             placeholder="Business name"
             autoFocus
+            className="w-full bg-slate-50 border-2 border-slate-50 rounded-2xl px-6 py-4 text-base font-medium focus:bg-white focus:border-purple-200 focus:ring-4 focus:ring-purple-50 outline-none transition-all"
+          />
+          <input
+            type="text"
+            value={location}
+            onChange={(e) => setLocation(e.target.value)}
+            placeholder="City / area (optional, used in reviews)"
             className="w-full bg-slate-50 border-2 border-slate-50 rounded-2xl px-6 py-4 text-base font-medium focus:bg-white focus:border-purple-200 focus:ring-4 focus:ring-purple-50 outline-none transition-all"
           />
           <input
