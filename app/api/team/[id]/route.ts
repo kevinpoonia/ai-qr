@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { db } from "@/lib/db";
 import { getSessionContext } from "@/lib/session";
 import type { Role } from "@/lib/types";
 
@@ -26,10 +26,11 @@ export async function DELETE(
     return NextResponse.json({ error: "Invalid id" }, { status: 400 });
   }
 
-  const db = getDb();
-  const target = db
-    .prepare("SELECT id, role FROM users WHERE id = ? AND business_id = ?")
-    .get(id, session.businessId) as { id: number; role: Role } | undefined;
+  const sql = await db();
+  const targetRows = await sql`
+    SELECT id, role FROM users WHERE id = ${id} AND business_id = ${session.businessId}
+  `;
+  const target = targetRows[0] as { id: number; role: Role } | undefined;
 
   if (!target) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -38,6 +39,6 @@ export async function DELETE(
     return NextResponse.json({ error: "Cannot remove the owner account" }, { status: 400 });
   }
 
-  db.prepare("DELETE FROM users WHERE id = ?").run(id);
+  await sql`DELETE FROM users WHERE id = ${id}`;
   return NextResponse.json({ success: true });
 }

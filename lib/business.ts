@@ -1,9 +1,8 @@
-import { getDb } from "./db";
+import { db } from "./db";
 
-export function getBusinessIdBySlug(slug: string): number | null {
-  const db = getDb();
-  const row = db.prepare("SELECT id FROM businesses WHERE slug = ?").get(slug) as
-    | { id: number }
-    | undefined;
+export async function getBusinessIdBySlug(slug: string): Promise<number | null> {
+  const sql = await db();
+  const rows = await sql`SELECT id FROM businesses WHERE slug = ${slug}`;
+  const row = rows[0] as { id: number } | undefined;
   return row?.id ?? null;
 }

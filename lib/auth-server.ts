@@ -1,5 +1,5 @@
 import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
-import { getDb } from "./db";
+import { db } from "./db";
 import type { Role } from "./types";
 
 interface UserRow {
@@ -34,69 +34,69 @@ export function slugify(name: string): string {
   return base || "business";
 }
 
-function generateUniqueSlug(base: string): string {
-  const db = getDb();
+async function generateUniqueSlug(base: string): Promise<string> {
+  const sql = await db();
   let candidate = base;
   for (let attempt = 0; attempt < 10; attempt++) {
-    const existing = db.prepare("SELECT id FROM businesses WHERE slug = ?").get(candidate);
-    if (!existing) return candidate;
+    const rows = await sql`SELECT id FROM businesses WHERE slug = ${candidate}`;
+    if (rows.length === 0) return candidate;
     candidate = `${base}-${randomBytes(2).toString("hex")}`;
   }
   throw new Error("Could not generate a unique slug");
 }
 
-export function findUserByEmail(email: string): UserRow | undefined {
-  const db = getDb();
-  return db.prepare("SELECT * FROM users WHERE email = ?").get(email.toLowerCase()) as
-    | UserRow
-    | undefined;
+export async function findUserByEmail(email: string): Promise<UserRow | undefined> {
+  const sql = await db();
+  const rows = await sql`SELECT * FROM users WHERE email = ${email.toLowerCase()}`;
+  return rows[0] as UserRow | undefined;
 }
 
 export function verifyUserPassword(user: UserRow, password: string): boolean {
   return verifyPassword(password, user.password_hash, user.password_salt);
 }
 
-export function setUserPassword(userId: number, password: string): void {
+export async function setUserPassword(userId: number, password: string): Promise<void> {
   const { hash, salt } = hashPassword(password);
-  getDb()
-    .prepare("UPDATE users SET password_hash = ?, password_salt = ? WHERE id = ?")
-    .run(hash, salt, userId);
+  const sql = await db();
+  await sql`UPDATE users SET password_hash = ${hash}, password_salt = ${salt} WHERE id = ${userId}`;
 }
 
-export function createBusinessWithOwner(
+export async function createBusinessWithOwner(
   businessName: string,
   email: string,
   password: string,
   location: string = ""
-): { businessId: number; userId: number; slug: string } {
-  const db = getDb();
-  const slug = generateUniqueSlug(slugify(businessName));
+): Promise<{ businessId: number; userId: number; slug: string }> {
+  const sql = await db();
+  const slug = await generateUniqueSlug(slugify(businessName));
 
-  const bizResult = db
-    .prepare("INSERT INTO businesses (name, slug, location) VALUES (?, ?, ?)")
-    .run(businessName, slug, location);
-  const businessId = Number(bizResult.lastInsertRowid);
+  const bizRows = await sql`
+    INSERT INTO businesses (name, slug, location) VALUES (${businessName}, ${slug}, ${location})
+    RETURNING id
+  `;
+  const businessId = Number((bizRows[0] as { id: number }).id);
 
   const { hash, salt } = hashPassword(password);
-  const userResult = db
-    .prepare(
-      "INSERT INTO users (business_id, email, password_hash, password_salt, role) VALUES (?, ?, ?, ?, 'owner')"
-    )
-    .run(businessId, email.toLowerCase(), hash, salt);
+  const userRows = await sql`
+    INSERT INTO users (business_id, email, password_hash, password_salt, role)
+    VALUES (${businessId}, ${email.toLowerCase()}, ${hash}, ${salt}, 'owner')
+    RETURNING id
+  `;
 
-  return { businessId, userId: Number(userResult.lastInsertRowid), slug };
+  return { businessId, userId: Number((userRows[0] as { id: number }).id), slug };
 }
 
-export function createStaffUser(
+export async function createStaffUser(
   businessId: number,
   email: string,
   password: string
-): { userId: number } {
+): Promise<{ userId: number }> {
   const { hash, salt } = hashPassword(password);
-  const result = getDb()
-    .prepare(
-      "INSERT INTO users (business_id, email, password_hash, password_salt, role) VALUES (?, ?, ?, ?, 'staff')"
-    )
-    .run(businessId, email.toLowerCase(), hash, salt);
-  return { userId: Number(result.lastInsertRowid) };
+  const sql = await db();
+  const rows = await sql`
+    INSERT INTO users (business_id, email, password_hash, password_salt, role)
+    VALUES (${businessId}, ${email.toLowerCase()}, ${hash}, ${salt}, 'staff')
+    RETURNING id
+  `;
+  return { userId: Number((rows[0] as { id: number }).id) };
 }

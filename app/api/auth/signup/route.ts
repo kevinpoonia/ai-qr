@@ -26,7 +26,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Password must be at least 8 characters" }, { status: 400 });
   }
 
-  if (findUserByEmail(cleanEmail)) {
+  if (await findUserByEmail(cleanEmail)) {
     return NextResponse.json({ error: "An account with that email already exists" }, { status: 409 });
   }
 
@@ -38,7 +38,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const { businessId, userId, slug } = createBusinessWithOwner(
+  const { businessId, userId, slug } = await createBusinessWithOwner(
     cleanBusinessName,
     cleanEmail,
     cleanPassword,

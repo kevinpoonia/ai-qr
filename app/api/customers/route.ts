@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { db } from "@/lib/db";
 import { getSessionContext } from "@/lib/session";
-import type { Customer } from "@/lib/types";
 
 export async function GET(request: Request) {
   const session = getSessionContext(request);
@@ -11,19 +10,18 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const q = searchParams.get("q")?.trim();
-  const db = getDb();
+  const sql = await db();
 
   const rows = q
-    ? (db
-        .prepare(
-          `SELECT * FROM customers
-           WHERE business_id = ? AND (name LIKE ? OR phone LIKE ? OR email LIKE ?)
-           ORDER BY created_at DESC`
-        )
-        .all(session.businessId, `%${q}%`, `%${q}%`, `%${q}%`) as unknown as Customer[])
-    : (db
-        .prepare(`SELECT * FROM customers WHERE business_id = ? ORDER BY created_at DESC`)
-        .all(session.businessId) as unknown as Customer[]);
+    ? await sql`
+        SELECT * FROM customers
+        WHERE business_id = ${session.businessId}
+          AND (name ILIKE ${`%${q}%`} OR phone ILIKE ${`%${q}%`} OR email ILIKE ${`%${q}%`})
+        ORDER BY created_at DESC
+      `
+    : await sql`
+        SELECT * FROM customers WHERE business_id = ${session.businessId} ORDER BY created_at DESC
+      `;
 
   return NextResponse.json({ customers: rows });
 }
@@ -55,57 +53,36 @@ export async function POST(request: Request) {
     );
   }
 
-  const db = getDb();
+  const sql = await db();
 
-  const existing = cleanPhone
-    ? (db
-        .prepare("SELECT id FROM customers WHERE business_id = ? AND phone = ?")
-        .get(session.businessId, cleanPhone) as { id: number } | undefined)
-    : undefined;
+  const existingRows = cleanPhone
+    ? await sql`SELECT id FROM customers WHERE business_id = ${session.businessId} AND phone = ${cleanPhone}`
+    : [];
+  const existing = existingRows[0] as { id: number } | undefined;
 
   if (existing) {
-    db.prepare(
-      `UPDATE customers SET
-         name = CASE WHEN ? != '' THEN ? ELSE name END,
-         email = CASE WHEN ? != '' THEN ? ELSE email END,
-         notes = CASE WHEN ? != '' THEN ? ELSE notes END,
-         review_count = review_count + ?,
-         last_review_at = CASE WHEN ? THEN datetime('now') ELSE last_review_at END
-       WHERE id = ?`
-    ).run(
-      cleanName,
-      cleanName,
-      cleanEmail,
-      cleanEmail,
-      cleanNotes,
-      cleanNotes,
-      shouldLogReview ? 1 : 0,
-      shouldLogReview ? 1 : 0,
-      existing.id
-    );
-
-    const updated = db.prepare("SELECT * FROM customers WHERE id = ?").get(existing.id);
-    return NextResponse.json({ customer: updated, created: false });
+    const reviewIncrement = shouldLogReview ? 1 : 0;
+    const updatedRows = await sql`
+      UPDATE customers SET
+        name = CASE WHEN ${cleanName} != '' THEN ${cleanName} ELSE name END,
+        email = CASE WHEN ${cleanEmail} != '' THEN ${cleanEmail} ELSE email END,
+        notes = CASE WHEN ${cleanNotes} != '' THEN ${cleanNotes} ELSE notes END,
+        review_count = review_count + ${reviewIncrement},
+        last_review_at = CASE WHEN ${shouldLogReview} THEN now() ELSE last_review_at END
+      WHERE id = ${existing.id}
+      RETURNING *
+    `;
+    return NextResponse.json({ customer: updatedRows[0], created: false });
   }
 
-  const result = db
-    .prepare(
-      `INSERT INTO customers (business_id, name, phone, email, notes, review_count, last_review_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`
+  const createdRows = await sql`
+    INSERT INTO customers (business_id, name, phone, email, notes, review_count, last_review_at)
+    VALUES (
+      ${session.businessId}, ${cleanName || null}, ${cleanPhone || null}, ${cleanEmail || null},
+      ${cleanNotes || null}, ${shouldLogReview ? 1 : 0}, ${shouldLogReview ? new Date().toISOString() : null}
     )
-    .run(
-      session.businessId,
-      cleanName || null,
-      cleanPhone || null,
-      cleanEmail || null,
-      cleanNotes || null,
-      shouldLogReview ? 1 : 0,
-      shouldLogReview ? new Date().toISOString().slice(0, 19).replace("T", " ") : null
-    );
+    RETURNING *
+  `;
 
-  const created = db
-    .prepare("SELECT * FROM customers WHERE id = ?")
-    .get(result.lastInsertRowid);
-
-  return NextResponse.json({ customer: created, created: true }, { status: 201 });
+  return NextResponse.json({ customer: createdRows[0], created: true }, { status: 201 });
 }

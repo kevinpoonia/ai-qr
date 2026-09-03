@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { db } from "@/lib/db";
 import { getBusinessIdBySlug } from "@/lib/business";
 
 export async function POST(
@@ -7,7 +7,7 @@ export async function POST(
   { params }: { params: Promise<{ slug: string }> }
 ) {
   const { slug } = await params;
-  const businessId = getBusinessIdBySlug(slug);
+  const businessId = await getBusinessIdBySlug(slug);
   if (businessId === null) {
     return NextResponse.json({ error: "Business not found" }, { status: 404 });
   }
@@ -28,35 +28,31 @@ export async function POST(
     return NextResponse.json({ success: true, skipped: true });
   }
 
-  const db = getDb();
+  const sql = await db();
 
-  const existing = cleanPhone
-    ? (db
-        .prepare("SELECT id FROM customers WHERE business_id = ? AND phone = ?")
-        .get(businessId, cleanPhone) as { id: number } | undefined)
-    : undefined;
+  const existingRows = cleanPhone
+    ? await sql`SELECT id FROM customers WHERE business_id = ${businessId} AND phone = ${cleanPhone}`
+    : [];
+  const existing = existingRows[0] as { id: number } | undefined;
 
   if (existing) {
-    db.prepare(
-      `UPDATE customers SET
-         name = CASE WHEN ? != '' THEN ? ELSE name END,
-         notes = CASE WHEN ? != '' THEN ? ELSE notes END,
-         review_count = review_count + 1,
-         last_review_at = datetime('now')
-       WHERE id = ?`
-    ).run(cleanName, cleanName, cleanNotes, cleanNotes, existing.id);
-
-    const updated = db.prepare("SELECT * FROM customers WHERE id = ?").get(existing.id);
-    return NextResponse.json({ customer: updated, created: false });
+    const updatedRows = await sql`
+      UPDATE customers SET
+        name = CASE WHEN ${cleanName} != '' THEN ${cleanName} ELSE name END,
+        notes = CASE WHEN ${cleanNotes} != '' THEN ${cleanNotes} ELSE notes END,
+        review_count = review_count + 1,
+        last_review_at = now()
+      WHERE id = ${existing.id}
+      RETURNING *
+    `;
+    return NextResponse.json({ customer: updatedRows[0], created: false });
   }
 
-  const result = db
-    .prepare(
-      `INSERT INTO customers (business_id, name, phone, notes, review_count, last_review_at)
-       VALUES (?, ?, ?, ?, 1, datetime('now'))`
-    )
-    .run(businessId, cleanName || null, cleanPhone || null, cleanNotes || null);
+  const createdRows = await sql`
+    INSERT INTO customers (business_id, name, phone, notes, review_count, last_review_at)
+    VALUES (${businessId}, ${cleanName || null}, ${cleanPhone || null}, ${cleanNotes || null}, 1, now())
+    RETURNING *
+  `;
 
-  const created = db.prepare("SELECT * FROM customers WHERE id = ?").get(result.lastInsertRowid);
-  return NextResponse.json({ customer: created, created: true }, { status: 201 });
+  return NextResponse.json({ customer: createdRows[0], created: true }, { status: 201 });
 }

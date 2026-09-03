@@ -153,7 +153,7 @@ export default function CustomersPage() {
 
   const formatDate = (value: string | null) => {
     if (!value) return "—";
-    const date = new Date(value.replace(" ", "T") + "Z");
+    const date = new Date(value);
     if (Number.isNaN(date.getTime())) return "—";
     return date.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
   };

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { db } from "@/lib/db";
 import type { FeedbackMode } from "@/lib/types";
 
 interface BusinessRow {
@@ -14,10 +14,11 @@ export async function GET(
   { params }: { params: Promise<{ slug: string }> }
 ) {
   const { slug } = await params;
-  const db = getDb();
-  const row = db
-    .prepare("SELECT id, name, google_reviews_url, feedback_mode FROM businesses WHERE slug = ?")
-    .get(slug) as BusinessRow | undefined;
+  const sql = await db();
+  const rows = await sql`
+    SELECT id, name, google_reviews_url, feedback_mode FROM businesses WHERE slug = ${slug}
+  `;
+  const row = rows[0] as BusinessRow | undefined;
 
   if (!row) {
     return NextResponse.json({ error: "Business not found" }, { status: 404 });

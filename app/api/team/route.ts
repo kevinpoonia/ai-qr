@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { db } from "@/lib/db";
 import { getSessionContext } from "@/lib/session";
 import { createStaffUser, findUserByEmail } from "@/lib/auth-server";
 
@@ -9,10 +9,11 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const db = getDb();
-  const rows = db
-    .prepare("SELECT id, email, role, created_at FROM users WHERE business_id = ? ORDER BY created_at ASC")
-    .all(session.businessId);
+  const sql = await db();
+  const rows = await sql`
+    SELECT id, email, role, created_at FROM users
+    WHERE business_id = ${session.businessId} ORDER BY created_at ASC
+  `;
 
   return NextResponse.json({ users: rows });
 }
@@ -44,10 +45,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Password must be at least 8 characters" }, { status: 400 });
   }
 
-  if (findUserByEmail(cleanEmail)) {
+  if (await findUserByEmail(cleanEmail)) {
     return NextResponse.json({ error: "An account with that email already exists" }, { status: 409 });
   }
 
-  const { userId } = createStaffUser(session.businessId, cleanEmail, cleanPassword);
+  const { userId } = await createStaffUser(session.businessId, cleanEmail, cleanPassword);
   return NextResponse.json({ id: userId, email: cleanEmail, role: "staff" }, { status: 201 });
 }

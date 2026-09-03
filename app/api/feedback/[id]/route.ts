@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { db } from "@/lib/db";
 import { getSessionContext } from "@/lib/session";
 
 function parseId(idParam: string): number | null {
@@ -34,17 +34,18 @@ export async function PATCH(
     return NextResponse.json({ error: "status must be 'new' or 'resolved'" }, { status: 400 });
   }
 
-  const db = getDb();
-  const result = db
-    .prepare("UPDATE feedback SET status = ? WHERE id = ? AND business_id = ?")
-    .run(status, id, session.businessId);
+  const sql = await db();
+  const updatedRows = await sql`
+    UPDATE feedback SET status = ${status}
+    WHERE id = ${id} AND business_id = ${session.businessId}
+    RETURNING *
+  `;
 
-  if (result.changes === 0) {
+  if (updatedRows.length === 0) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const updated = db.prepare("SELECT * FROM feedback WHERE id = ?").get(id);
-  return NextResponse.json({ feedback: updated });
+  return NextResponse.json({ feedback: updatedRows[0] });
 }
 
 export async function DELETE(
@@ -62,12 +63,12 @@ export async function DELETE(
     return NextResponse.json({ error: "Invalid id" }, { status: 400 });
   }
 
-  const db = getDb();
-  const result = db
-    .prepare("DELETE FROM feedback WHERE id = ? AND business_id = ?")
-    .run(id, session.businessId);
+  const sql = await db();
+  const deletedRows = await sql`
+    DELETE FROM feedback WHERE id = ${id} AND business_id = ${session.businessId} RETURNING id
+  `;
 
-  if (result.changes === 0) {
+  if (deletedRows.length === 0) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 

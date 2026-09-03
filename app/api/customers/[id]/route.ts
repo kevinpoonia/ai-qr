@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { db } from "@/lib/db";
 import { getSessionContext } from "@/lib/session";
 import type { Customer } from "@/lib/types";
 
@@ -30,10 +30,11 @@ export async function PATCH(
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const db = getDb();
-  const existing = db
-    .prepare("SELECT * FROM customers WHERE id = ? AND business_id = ?")
-    .get(id, session.businessId) as Customer | undefined;
+  const sql = await db();
+  const existingRows = await sql`
+    SELECT * FROM customers WHERE id = ${id} AND business_id = ${session.businessId}
+  `;
+  const existing = existingRows[0] as Customer | undefined;
 
   if (!existing) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -45,12 +46,14 @@ export async function PATCH(
   const nextEmail = typeof email === "string" ? email.trim() : existing.email;
   const nextNotes = typeof notes === "string" ? notes.trim() : existing.notes;
 
-  db.prepare(
-    "UPDATE customers SET name = ?, phone = ?, email = ?, notes = ? WHERE id = ? AND business_id = ?"
-  ).run(nextName || null, nextPhone || null, nextEmail || null, nextNotes || null, id, session.businessId);
+  const updatedRows = await sql`
+    UPDATE customers SET name = ${nextName || null}, phone = ${nextPhone || null},
+      email = ${nextEmail || null}, notes = ${nextNotes || null}
+    WHERE id = ${id} AND business_id = ${session.businessId}
+    RETURNING *
+  `;
 
-  const updated = db.prepare("SELECT * FROM customers WHERE id = ?").get(id);
-  return NextResponse.json({ customer: updated });
+  return NextResponse.json({ customer: updatedRows[0] });
 }
 
 export async function DELETE(
@@ -68,12 +71,12 @@ export async function DELETE(
     return NextResponse.json({ error: "Invalid id" }, { status: 400 });
   }
 
-  const db = getDb();
-  const result = db
-    .prepare("DELETE FROM customers WHERE id = ? AND business_id = ?")
-    .run(id, session.businessId);
+  const sql = await db();
+  const deletedRows = await sql`
+    DELETE FROM customers WHERE id = ${id} AND business_id = ${session.businessId} RETURNING id
+  `;
 
-  if (result.changes === 0) {
+  if (deletedRows.length === 0) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 

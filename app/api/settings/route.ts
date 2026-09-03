@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { db } from "@/lib/db";
 import { getSessionContext } from "@/lib/session";
 import type { FeedbackMode } from "@/lib/types";
 
@@ -17,12 +17,12 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const db = getDb();
-  const row = db
-    .prepare(
-      "SELECT name, slug, location, google_reviews_url, feedback_mode FROM businesses WHERE id = ?"
-    )
-    .get(session.businessId) as BusinessRow | undefined;
+  const sql = await db();
+  const rows = await sql`
+    SELECT name, slug, location, google_reviews_url, feedback_mode
+    FROM businesses WHERE id = ${session.businessId}
+  `;
+  const row = rows[0] as BusinessRow | undefined;
 
   if (!row) {
     return NextResponse.json({ error: "Business not found" }, { status: 404 });
@@ -69,10 +69,11 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: "googleReviewsUrl must be a valid URL" }, { status: 400 });
   }
 
-  const db = getDb();
-  db.prepare(
-    "UPDATE businesses SET name = ?, location = ?, google_reviews_url = ?, feedback_mode = ? WHERE id = ?"
-  ).run(name, place, url, mode, session.businessId);
+  const sql = await db();
+  await sql`
+    UPDATE businesses SET name = ${name}, location = ${place}, google_reviews_url = ${url}, feedback_mode = ${mode}
+    WHERE id = ${session.businessId}
+  `;
 
   return NextResponse.json({ businessName: name, location: place, googleReviewsUrl: url, feedbackMode: mode });
 }

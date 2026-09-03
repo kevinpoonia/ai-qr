@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { db } from "@/lib/db";
 import { getBusinessIdBySlug } from "@/lib/business";
 
 export async function POST(
@@ -7,7 +7,7 @@ export async function POST(
   { params }: { params: Promise<{ slug: string }> }
 ) {
   const { slug } = await params;
-  const businessId = getBusinessIdBySlug(slug);
+  const businessId = await getBusinessIdBySlug(slug);
   if (businessId === null) {
     return NextResponse.json({ error: "Business not found" }, { status: 404 });
   }
@@ -29,33 +29,35 @@ export async function POST(
   const cleanName = typeof name === "string" ? name.trim() : "";
   const cleanPhone = typeof phone === "string" ? phone.trim() : "";
 
-  const db = getDb();
+  const sql = await db();
 
   let customerId: number | null = null;
   if (cleanPhone) {
-    const existing = db
-      .prepare("SELECT id FROM customers WHERE business_id = ? AND phone = ?")
-      .get(businessId, cleanPhone) as { id: number } | undefined;
+    const existingRows = await sql`
+      SELECT id FROM customers WHERE business_id = ${businessId} AND phone = ${cleanPhone}
+    `;
+    const existing = existingRows[0] as { id: number } | undefined;
 
     if (existing) {
-      db.prepare(
-        `UPDATE customers SET name = CASE WHEN ? != '' THEN ? ELSE name END WHERE id = ?`
-      ).run(cleanName, cleanName, existing.id);
+      await sql`
+        UPDATE customers SET name = CASE WHEN ${cleanName} != '' THEN ${cleanName} ELSE name END
+        WHERE id = ${existing.id}
+      `;
       customerId = existing.id;
     } else {
-      const result = db
-        .prepare("INSERT INTO customers (business_id, name, phone) VALUES (?, ?, ?)")
-        .run(businessId, cleanName || null, cleanPhone);
-      customerId = Number(result.lastInsertRowid);
+      const createdRows = await sql`
+        INSERT INTO customers (business_id, name, phone) VALUES (${businessId}, ${cleanName || null}, ${cleanPhone})
+        RETURNING id
+      `;
+      customerId = Number((createdRows[0] as { id: number }).id);
     }
   }
 
-  const result = db
-    .prepare(
-      "INSERT INTO feedback (business_id, customer_id, rating, comment) VALUES (?, ?, ?, ?)"
-    )
-    .run(businessId, customerId, cleanRating, cleanComment || null);
+  const feedbackRows = await sql`
+    INSERT INTO feedback (business_id, customer_id, rating, comment)
+    VALUES (${businessId}, ${customerId}, ${cleanRating}, ${cleanComment || null})
+    RETURNING *
+  `;
 
-  const created = db.prepare("SELECT * FROM feedback WHERE id = ?").get(result.lastInsertRowid);
-  return NextResponse.json({ feedback: created }, { status: 201 });
+  return NextResponse.json({ feedback: feedbackRows[0] }, { status: 201 });
 }

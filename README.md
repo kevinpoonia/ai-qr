@@ -7,13 +7,14 @@ A multi-tenant QR-code review funnel for local businesses: customers scan a code
 ```bash
 npm install
 cp .env.example .env.local
-# edit .env.local and set SESSION_SECRET to a random value:
-node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+# edit .env.local:
+#   SESSION_SECRET — random value, e.g. node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+#   DATABASE_URL   — a Postgres connection string (a Neon project's pooled connection string works well)
 
 npm run dev
 ```
 
-Data is stored locally in a SQLite file at `data/app.db` (created automatically, gitignored).
+Schema setup runs automatically on first request (idempotent `CREATE TABLE IF NOT EXISTS` calls) — no separate migration step needed.
 
 Visit `/signup` to create a business account — this generates a unique QR slug (e.g. `/qr/joes-cafe-x7k2`), a review-funnel dashboard, and an owner login for that business. There is no shared/default admin account anymore; every business's data (customers, feedback, analytics, settings) is isolated by `business_id`.
 
@@ -42,8 +43,12 @@ The FTC's 2024 rule on review gating targets exactly the "Gated" pattern in the 
 
 ## Stack
 
-Next.js 16 (App Router, Turbopack) · React 19 · Tailwind CSS 4 · SQLite via Node's built-in `node:sqlite` (no native build step) · `qrcode.react` for QR rendering. Sessions are signed cookies (Web Crypto HMAC) carrying `{ userId, businessId, role }`, verified in `proxy.ts` and forwarded to API routes via headers — no server-side session store needed.
+Next.js 16 (App Router, Turbopack) · React 19 · Tailwind CSS 4 · Postgres via `@neondatabase/serverless` (HTTP-based driver, no connection pool to manage — works from serverless/edge as well as long-running servers) · `qrcode.react` for QR rendering. Sessions are signed cookies (Web Crypto HMAC) carrying `{ userId, businessId, role }`, verified in `proxy.ts` and forwarded to API routes via headers — no server-side session store needed.
+
+## Review templates
+
+Reviews aren't LLM-generated — they're rendered from a fixed pool of 1000 templates (20 sentence structures × 10 adjectives × 5 themes) personalized with each business's name and location (`lib/reviewTemplates.ts`). Each business gets a persisted, randomized full-period cycle through all 1000 (`review_rotations` table, `lib/reviewRotation.ts`): every template is served exactly once before any repeat, and the insert-or-increment is a single atomic `INSERT ... ON CONFLICT DO UPDATE` so concurrent requests for the same business can never collide on the same review.
 
 ## Deploying
 
-This app needs a writable filesystem for its SQLite database, so it won't run as-is on purely serverless/edge platforms (e.g. Vercel's default runtime) — deploy it somewhere with persistent disk (a VM, a container with an attached volume, `next start` on your own server, etc.), and always set `SESSION_SECRET` in the environment.
+Since the database is now a real Postgres instance (not a local file), this deploys cleanly to serverless/edge platforms (Vercel, etc.) as well as traditional servers — just set `DATABASE_URL` and `SESSION_SECRET` in the environment.

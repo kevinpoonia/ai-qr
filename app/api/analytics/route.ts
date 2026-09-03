@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { db } from "@/lib/db";
 import { getSessionContext } from "@/lib/session";
 
 export async function GET(request: Request) {
@@ -8,57 +8,40 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const db = getDb();
+  const sql = await db();
   const businessId = session.businessId;
 
-  const totalScans = (
-    db
-      .prepare("SELECT COUNT(*) AS n FROM events WHERE business_id = ? AND type = 'scan'")
-      .get(businessId) as { n: number }
-  ).n;
+  const [scanRows, completedRows, feedbackTotalRows, pendingRows, ratingRows, trendRows] =
+    await Promise.all([
+      sql`SELECT COUNT(*) AS n FROM events WHERE business_id = ${businessId} AND type = 'scan'`,
+      sql`SELECT COUNT(*) AS n FROM events WHERE business_id = ${businessId} AND type = 'review_completed'`,
+      sql`SELECT COUNT(*) AS n FROM feedback WHERE business_id = ${businessId}`,
+      sql`SELECT COUNT(*) AS n FROM feedback WHERE business_id = ${businessId} AND status = 'new'`,
+      sql`
+        SELECT rating, COUNT(*) AS n FROM events
+        WHERE business_id = ${businessId} AND type = 'rating' AND rating IS NOT NULL
+        GROUP BY rating
+      `,
+      sql`
+        SELECT to_char(created_at, 'YYYY-MM-DD') AS day, type, COUNT(*) AS n
+        FROM events
+        WHERE business_id = ${businessId}
+          AND created_at >= now() - interval '14 days'
+          AND type IN ('scan', 'review_completed')
+        GROUP BY day, type
+        ORDER BY day ASC
+      `,
+    ]);
 
-  const totalReviewsCompleted = (
-    db
-      .prepare(
-        "SELECT COUNT(*) AS n FROM events WHERE business_id = ? AND type = 'review_completed'"
-      )
-      .get(businessId) as { n: number }
-  ).n;
-
-  const totalFeedbackSubmitted = (
-    db.prepare("SELECT COUNT(*) AS n FROM feedback WHERE business_id = ?").get(businessId) as {
-      n: number;
-    }
-  ).n;
-
-  const pendingFeedback = (
-    db
-      .prepare("SELECT COUNT(*) AS n FROM feedback WHERE business_id = ? AND status = 'new'")
-      .get(businessId) as { n: number }
-  ).n;
-
-  const ratingRows = db
-    .prepare(
-      `SELECT rating, COUNT(*) AS n FROM events
-       WHERE business_id = ? AND type = 'rating' AND rating IS NOT NULL
-       GROUP BY rating`
-    )
-    .all(businessId) as { rating: number; n: number }[];
+  const totalScans = Number((scanRows[0] as { n: number | string }).n);
+  const totalReviewsCompleted = Number((completedRows[0] as { n: number | string }).n);
+  const totalFeedbackSubmitted = Number((feedbackTotalRows[0] as { n: number | string }).n);
+  const pendingFeedback = Number((pendingRows[0] as { n: number | string }).n);
 
   const ratingDistribution: Record<string, number> = { "1": 0, "2": 0, "3": 0, "4": 0, "5": 0 };
-  for (const row of ratingRows) {
-    ratingDistribution[String(row.rating)] = row.n;
+  for (const row of ratingRows as { rating: number; n: number | string }[]) {
+    ratingDistribution[String(row.rating)] = Number(row.n);
   }
-
-  const trendRows = db
-    .prepare(
-      `SELECT date(created_at) AS day, type, COUNT(*) AS n
-       FROM events
-       WHERE business_id = ? AND created_at >= datetime('now', '-14 days') AND type IN ('scan', 'review_completed')
-       GROUP BY day, type
-       ORDER BY day ASC`
-    )
-    .all(businessId) as { day: string; type: string; n: number }[];
 
   const trendMap = new Map<string, { day: string; scans: number; completions: number }>();
   for (let i = 13; i >= 0; i--) {
@@ -67,11 +50,11 @@ export async function GET(request: Request) {
     const day = d.toISOString().slice(0, 10);
     trendMap.set(day, { day, scans: 0, completions: 0 });
   }
-  for (const row of trendRows) {
+  for (const row of trendRows as { day: string; type: string; n: number | string }[]) {
     const entry = trendMap.get(row.day);
     if (!entry) continue;
-    if (row.type === "scan") entry.scans = row.n;
-    if (row.type === "review_completed") entry.completions = row.n;
+    if (row.type === "scan") entry.scans = Number(row.n);
+    if (row.type === "review_completed") entry.completions = Number(row.n);
   }
 
   const conversionRate = totalScans > 0 ? totalReviewsCompleted / totalScans : 0;
