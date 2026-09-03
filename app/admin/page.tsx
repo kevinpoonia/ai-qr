@@ -17,10 +17,41 @@ import {
   KeyRound,
   LogIn,
   Settings,
+  QrCode,
+  Download,
 } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import AdminNavBar from "./components/AdminNavBar";
 import type { AdminBusiness } from "@/lib/types";
 import type { AuditLogEntry } from "@/lib/auditLog";
+
+function downloadQrForSlug(slug: string) {
+  const container = document.getElementById(`admin-qr-${slug}`);
+  const svg = container?.querySelector("svg");
+  if (!svg) return;
+
+  const svgData = new XMLSerializer().serializeToString(svg);
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d");
+  const img = new Image();
+
+  img.onload = () => {
+    canvas.width = 1000;
+    canvas.height = 1000;
+    if (ctx) {
+      ctx.fillStyle = "white";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 50, 50, 900, 900);
+    }
+    const pngFile = canvas.toDataURL("image/png");
+    const downloadLink = document.createElement("a");
+    downloadLink.download = `${slug}-qr.png`;
+    downloadLink.href = pngFile;
+    downloadLink.click();
+  };
+
+  img.src = "data:image/svg+xml;base64," + btoa(svgData);
+}
 
 export default function AdminPage() {
   const router = useRouter();
@@ -32,6 +63,7 @@ export default function AdminPage() {
   const [busyId, setBusyId] = useState<number | null>(null);
   const [copiedSlug, setCopiedSlug] = useState<string | null>(null);
   const [resetTargetId, setResetTargetId] = useState<number | null>(null);
+  const [qrOpenId, setQrOpenId] = useState<number | null>(null);
   const [resetPassword, setResetPassword] = useState("");
   const [resetResult, setResetResult] = useState<{ id: number; password: string } | null>(null);
 
@@ -323,6 +355,15 @@ export default function AdminPage() {
                         <Settings className="w-4 h-4" />
                       </Link>
                       <button
+                        onClick={() => setQrOpenId(qrOpenId === b.id ? null : b.id)}
+                        className={`p-2.5 rounded-xl bg-white border border-slate-100 transition-colors ${
+                          qrOpenId === b.id ? "text-purple-600" : "text-slate-500 hover:text-purple-600"
+                        }`}
+                        title="Show QR code"
+                      >
+                        <QrCode className="w-4 h-4" />
+                      </button>
+                      <button
                         onClick={() => copyLink(b.slug)}
                         className="p-2.5 rounded-xl bg-white border border-slate-100 text-slate-500 hover:text-purple-600 transition-colors"
                         title="Copy link"
@@ -399,6 +440,29 @@ export default function AdminPage() {
                     <div className="mx-5 mb-5 p-4 rounded-xl bg-emerald-50 border border-emerald-100 text-sm text-emerald-700 font-medium">
                       New password for {b.owner_email}:{" "}
                       <span className="font-mono font-bold select-all">{resetResult.password}</span>
+                    </div>
+                  )}
+
+                  {qrOpenId === b.id && (
+                    <div className="mx-5 mb-5 p-6 rounded-2xl bg-white border border-slate-100 flex flex-col sm:flex-row items-center gap-6">
+                      <div id={`admin-qr-${b.slug}`} className="p-4 bg-white rounded-2xl border-2 border-slate-50 shrink-0">
+                        <QRCodeSVG
+                          value={`${typeof window !== "undefined" ? window.location.origin : ""}/qr/${b.slug}`}
+                          size={160}
+                          level="H"
+                        />
+                      </div>
+                      <div className="space-y-3 text-center sm:text-left">
+                        <p className="text-sm font-bold text-slate-900">{b.name}&apos;s review QR</p>
+                        <p className="font-mono text-xs text-purple-600 break-all">/qr/{b.slug}</p>
+                        <button
+                          onClick={() => downloadQrForSlug(b.slug)}
+                          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-slate-950 text-white text-sm font-bold hover:bg-black transition-all"
+                        >
+                          <Download className="w-4 h-4" />
+                          Download PNG
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>

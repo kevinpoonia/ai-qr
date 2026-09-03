@@ -12,8 +12,11 @@ import {
   Inbox,
   Check,
   Trash2,
+  Download,
+  Copy,
 } from "lucide-react";
 import Link from "next/link";
+import { QRCodeSVG } from "qrcode.react";
 import AdminNavBar from "../../components/AdminNavBar";
 import type { AdminBusiness, Customer, FeedbackEntry, FeedbackMode } from "@/lib/types";
 
@@ -46,6 +49,12 @@ export default function AdminClientDetailPage() {
   const [slug, setSlug] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [isClient, setIsClient] = useState(false);
+  const [isCopied, setIsCopied] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   const load = async () => {
     setIsLoading(true);
@@ -145,6 +154,41 @@ export default function AdminClientDetailPage() {
     }
   };
 
+  const qrLink = isClient && business ? `${window.location.origin}/qr/${business.slug}` : "";
+
+  const copyLink = () => {
+    navigator.clipboard.writeText(qrLink);
+    setIsCopied(true);
+    setTimeout(() => setIsCopied(false), 2000);
+  };
+
+  const downloadQr = () => {
+    const svg = document.getElementById("admin-client-qr")?.querySelector("svg");
+    if (!svg) return;
+
+    const svgData = new XMLSerializer().serializeToString(svg);
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    const img = new Image();
+
+    img.onload = () => {
+      canvas.width = 1000;
+      canvas.height = 1000;
+      if (ctx) {
+        ctx.fillStyle = "white";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 50, 50, 900, 900);
+      }
+      const pngFile = canvas.toDataURL("image/png");
+      const downloadLink = document.createElement("a");
+      downloadLink.download = `${business?.slug ?? "client"}-qr.png`;
+      downloadLink.href = pngFile;
+      downloadLink.click();
+    };
+
+    img.src = "data:image/svg+xml;base64," + btoa(svgData);
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-[#fcfcfc] flex items-center justify-center">
@@ -182,6 +226,34 @@ export default function AdminClientDetailPage() {
         </header>
 
         {error && <p className="text-sm text-red-500 font-bold">{error}</p>}
+
+        <div className="bg-white rounded-[3rem] p-10 border border-slate-100 shadow-[0_40px_80px_-20px_rgba(0,0,0,0.05)] flex flex-col sm:flex-row items-center gap-10">
+          <div id="admin-client-qr" className="p-5 bg-white rounded-[2rem] border-2 border-slate-50 shrink-0">
+            {isClient && <QRCodeSVG value={qrLink} size={180} level="H" />}
+          </div>
+          <div className="space-y-4 text-center sm:text-left">
+            <h2 className="text-xl font-black tracking-tight">Review QR Code</h2>
+            <div className="font-mono text-xs text-purple-600 break-all bg-purple-50 px-4 py-3 rounded-xl border border-purple-100">
+              {qrLink}
+            </div>
+            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3">
+              <button
+                onClick={downloadQr}
+                className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-slate-950 text-white text-sm font-bold hover:bg-black transition-all"
+              >
+                <Download className="w-4 h-4" />
+                Download PNG
+              </button>
+              <button
+                onClick={copyLink}
+                className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-white border border-slate-200 text-slate-600 text-sm font-bold hover:bg-slate-50 transition-all"
+              >
+                {isCopied ? <CheckCircle2 className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
+                {isCopied ? "Copied!" : "Copy Link"}
+              </button>
+            </div>
+          </div>
+        </div>
 
         {analytics && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
