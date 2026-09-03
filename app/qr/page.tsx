@@ -1,13 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowRight, Star, RefreshCw } from "lucide-react";
+import { ArrowRight, Star, RefreshCw, User, Phone } from "lucide-react";
 
 export default function QRPage() {
     const [review, setReview] = useState<string>("");
     const [isLoading, setIsLoading] = useState(true);
     const [isCopied, setIsCopied] = useState(false);
     const [googleUrl, setGoogleUrl] = useState("https://search.google.com/local/writereview?placeid=ChIJN1t_tDeuEmsRUsoyG8391Ic");
+    const [name, setName] = useState("");
+    const [phone, setPhone] = useState("");
 
     const fetchReview = async () => {
         setIsLoading(true);
@@ -25,21 +27,32 @@ export default function QRPage() {
 
     useEffect(() => {
         fetchReview();
-        const savedSettings = localStorage.getItem("ai_qr_settings");
-        if (savedSettings) {
+
+        const loadSettings = async () => {
             try {
-                const { googleReviewsUrl } = JSON.parse(savedSettings);
-                if (googleReviewsUrl) setGoogleUrl(googleReviewsUrl);
+                const res = await fetch("/api/settings");
+                const data = await res.json();
+                if (data.googleReviewsUrl) setGoogleUrl(data.googleReviewsUrl);
             } catch (err) {
                 console.error("Failed to load settings", err);
             }
-        }
+        };
+        loadSettings();
     }, []);
 
     const handleCopyAndContinue = async () => {
         try {
             await navigator.clipboard.writeText(review);
             setIsCopied(true);
+
+            if (name.trim() || phone.trim()) {
+                fetch("/api/customers", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ name, phone, notes: review, logReview: true }),
+                }).catch((err) => console.error("Failed to log customer", err));
+            }
+
             setTimeout(() => {
                 window.location.href = googleUrl;
             }, 1000);
@@ -86,6 +99,34 @@ export default function QRPage() {
                                 <RefreshCw className="w-5 h-5" />
                             </button>
                         )}
+                    </div>
+
+                    <div className="space-y-3">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
+                            Stay in touch (optional)
+                        </p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div className="relative">
+                                <User className="w-4 h-4 text-slate-300 absolute left-4 top-1/2 -translate-y-1/2" />
+                                <input
+                                    type="text"
+                                    value={name}
+                                    onChange={(e) => setName(e.target.value)}
+                                    placeholder="Your name"
+                                    className="w-full bg-slate-50 border-2 border-slate-50 rounded-xl pl-10 pr-4 py-3 text-sm font-medium focus:bg-white focus:border-purple-200 focus:ring-4 focus:ring-purple-50 outline-none transition-all placeholder:text-slate-300"
+                                />
+                            </div>
+                            <div className="relative">
+                                <Phone className="w-4 h-4 text-slate-300 absolute left-4 top-1/2 -translate-y-1/2" />
+                                <input
+                                    type="tel"
+                                    value={phone}
+                                    onChange={(e) => setPhone(e.target.value)}
+                                    placeholder="Phone number"
+                                    className="w-full bg-slate-50 border-2 border-slate-50 rounded-xl pl-10 pr-4 py-3 text-sm font-medium focus:bg-white focus:border-purple-200 focus:ring-4 focus:ring-purple-50 outline-none transition-all placeholder:text-slate-300"
+                                />
+                            </div>
+                        </div>
                     </div>
 
                     <div className="space-y-4">

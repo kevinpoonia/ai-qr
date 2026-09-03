@@ -1,34 +1,76 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Globe, Copy, Download, Star, ExternalLink, Settings as SettingsIcon, CheckCircle2 } from "lucide-react";
+import { Globe, Copy, Download, Star, ExternalLink, Settings as SettingsIcon, CheckCircle2, Users, Loader2 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
+import Link from "next/link";
+import NavBar from "./components/NavBar";
 
 export default function Dashboard() {
-  const [googleReviewsUrl, setGoogleReviewsUrl] = useState("https://search.google.com/local/writereview?placeid=ChIJN1t_tDeuEmsRUsoyG8391Ic");
+  const [googleReviewsUrl, setGoogleReviewsUrl] = useState("");
+  const [businessName, setBusinessName] = useState("");
   const [showSuccess, setShowSuccess] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [customerCount, setCustomerCount] = useState<number | null>(null);
   const qrRef = useRef<HTMLDivElement>(null);
   const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
     setIsClient(true);
-    const saved = localStorage.getItem("ai_qr_settings");
-    if (saved) {
+
+    const loadSettings = async () => {
       try {
-        const { googleReviewsUrl: savedUrl } = JSON.parse(saved);
-        if (savedUrl) setGoogleReviewsUrl(savedUrl);
+        const res = await fetch("/api/settings");
+        const data = await res.json();
+        setGoogleReviewsUrl(data.googleReviewsUrl ?? "");
+        setBusinessName(data.businessName ?? "");
       } catch (err) {
         console.error("Failed to load settings", err);
+        setError("Could not load settings from the server.");
+      } finally {
+        setIsLoading(false);
       }
-    }
+    };
+
+    const loadCustomerCount = async () => {
+      try {
+        const res = await fetch("/api/customers");
+        const data = await res.json();
+        setCustomerCount(Array.isArray(data.customers) ? data.customers.length : 0);
+      } catch (err) {
+        console.error("Failed to load customers", err);
+      }
+    };
+
+    loadSettings();
+    loadCustomerCount();
   }, []);
 
   const qrLink = isClient ? `${window.location.origin}/qr` : '';
 
-  const saveSettings = () => {
-    localStorage.setItem("ai_qr_settings", JSON.stringify({ googleReviewsUrl }));
-    setShowSuccess(true);
-    setTimeout(() => setShowSuccess(false), 3000);
+  const saveSettings = async () => {
+    setError("");
+    setIsSaving(true);
+    try {
+      const res = await fetch("/api/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ businessName, googleReviewsUrl }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Failed to save settings");
+      }
+      setShowSuccess(true);
+      setTimeout(() => setShowSuccess(false), 3000);
+    } catch (err) {
+      console.error("Failed to save settings", err);
+      setError(err instanceof Error ? err.message : "Failed to save settings");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const downloadQR = () => {
@@ -62,7 +104,7 @@ export default function Dashboard() {
     navigator.clipboard.writeText(qrLink);
   };
 
-  if (!isClient) return null;
+  if (!isClient || isLoading) return null;
 
   return (
     <div className="min-h-screen bg-[#fcfcfc] text-slate-900 p-8 sm:p-12 lg:p-20 font-sans selection:bg-purple-100">
@@ -82,7 +124,26 @@ export default function Dashboard() {
               Boost your local business ranking effortlessly.
             </p>
           </div>
+          <NavBar />
         </header>
+
+        {customerCount !== null && (
+          <Link
+            href="/customers"
+            className="flex items-center justify-between gap-6 bg-slate-900 text-white rounded-[2rem] px-10 py-8 hover:bg-black transition-all group"
+          >
+            <div className="flex items-center gap-5">
+              <div className="w-12 h-12 rounded-2xl bg-white/10 flex items-center justify-center">
+                <Users className="w-6 h-6" />
+              </div>
+              <div>
+                <p className="text-2xl font-black">{customerCount} customer{customerCount === 1 ? "" : "s"} tracked</p>
+                <p className="text-slate-400 text-sm font-medium">Manage names, phone numbers &amp; review history</p>
+              </div>
+            </div>
+            <ExternalLink className="w-5 h-5 text-slate-400 group-hover:text-white transition-colors" />
+          </Link>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
 
@@ -139,6 +200,19 @@ export default function Dashboard() {
               <div className="space-y-10">
                 <div className="space-y-4">
                   <label className="flex items-center gap-2 text-sm font-black uppercase tracking-widest text-slate-400">
+                    Business Name
+                  </label>
+                  <input
+                    type="text"
+                    value={businessName}
+                    onChange={(e) => setBusinessName(e.target.value)}
+                    placeholder="Your Business Name"
+                    className="w-full bg-slate-50 border-2 border-slate-50 rounded-2xl px-6 py-5 text-lg font-medium focus:bg-white focus:border-purple-200 focus:ring-4 focus:ring-purple-50 outline-none transition-all placeholder:text-slate-300"
+                  />
+                </div>
+
+                <div className="space-y-4">
+                  <label className="flex items-center gap-2 text-sm font-black uppercase tracking-widest text-slate-400">
                     <Globe className="w-4 h-4" />
                     Google Reviews Target URL
                   </label>
@@ -155,13 +229,18 @@ export default function Dashboard() {
                     This is where customers will land after copying their AI-generated review.
                     Ensure this is your direct &quot;Write a Review&quot; link.
                   </p>
+                  {error && (
+                    <p className="text-sm text-red-500 font-bold">{error}</p>
+                  )}
                 </div>
 
                 <div className="pt-4">
                   <button
                     onClick={saveSettings}
-                    className="inline-flex items-center gap-3 px-10 py-5 rounded-2xl bg-purple-600 text-white font-bold hover:bg-purple-700 transition-all shadow-lg shadow-purple-100 active:scale-[0.98]"
+                    disabled={isSaving}
+                    className="inline-flex items-center gap-3 px-10 py-5 rounded-2xl bg-purple-600 text-white font-bold hover:bg-purple-700 transition-all shadow-lg shadow-purple-100 active:scale-[0.98] disabled:opacity-60"
                   >
+                    {isSaving && <Loader2 className="w-5 h-5 animate-spin" />}
                     Save Configuration
                     {showSuccess && <CheckCircle2 className="w-5 h-5 animate-in zoom-in" />}
                   </button>
