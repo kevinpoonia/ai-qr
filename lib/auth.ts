@@ -1,8 +1,17 @@
 // Edge-safe session token helpers. Uses only Web Crypto + TextEncoder/atob/btoa
-// so this module can run in both Next.js middleware (Edge runtime) and API routes.
+// so this module can run in both Next.js middleware/proxy (Edge runtime) and API routes.
+
+import type { Role } from "./types";
 
 export const SESSION_COOKIE = "aiqr_session";
 export const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 7; // 7 days
+
+export interface SessionPayload {
+  userId: number;
+  businessId: number;
+  role: Role;
+  exp: number;
+}
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
@@ -31,22 +40,23 @@ async function getKey(secret: string): Promise<CryptoKey> {
 
 export async function createSessionToken(
   secret: string,
+  payload: Omit<SessionPayload, "exp">,
   maxAgeSeconds: number = SESSION_MAX_AGE_SECONDS
 ): Promise<string> {
-  const exp = Date.now() + maxAgeSeconds * 1000;
-  const payload = base64UrlEncode(encoder.encode(JSON.stringify({ exp })));
+  const full: SessionPayload = { ...payload, exp: Date.now() + maxAgeSeconds * 1000 };
+  const payloadStr = base64UrlEncode(encoder.encode(JSON.stringify(full)));
   const key = await getKey(secret);
-  const signature = await crypto.subtle.sign("HMAC", key, encoder.encode(payload));
-  return `${payload}.${base64UrlEncode(new Uint8Array(signature))}`;
+  const signature = await crypto.subtle.sign("HMAC", key, encoder.encode(payloadStr));
+  return `${payloadStr}.${base64UrlEncode(new Uint8Array(signature))}`;
 }
 
 export async function verifySessionToken(
   token: string | undefined | null,
   secret: string
-): Promise<boolean> {
-  if (!token) return false;
-  const [payload, signature] = token.split(".");
-  if (!payload || !signature) return false;
+): Promise<SessionPayload | null> {
+  if (!token) return null;
+  const [payloadStr, signature] = token.split(".");
+  if (!payloadStr || !signature) return null;
 
   try {
     const key = await getKey(secret);
@@ -54,13 +64,16 @@ export async function verifySessionToken(
       "HMAC",
       key,
       base64UrlDecode(signature),
-      encoder.encode(payload)
+      encoder.encode(payloadStr)
     );
-    if (!valid) return false;
+    if (!valid) return null;
 
-    const { exp } = JSON.parse(decoder.decode(base64UrlDecode(payload))) as { exp?: number };
-    return typeof exp === "number" && exp > Date.now();
+    const payload = JSON.parse(decoder.decode(base64UrlDecode(payloadStr))) as SessionPayload;
+    if (typeof payload.exp !== "number" || payload.exp <= Date.now()) return null;
+    if (typeof payload.userId !== "number" || typeof payload.businessId !== "number") return null;
+
+    return payload;
   } catch {
-    return false;
+    return null;
   }
 }

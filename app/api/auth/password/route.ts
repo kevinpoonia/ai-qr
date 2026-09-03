@@ -1,7 +1,14 @@
 import { NextResponse } from "next/server";
-import { setAdminPassword, verifyAdminPassword } from "@/lib/auth-server";
+import { getDb } from "@/lib/db";
+import { getSessionContext } from "@/lib/session";
+import { verifyPassword, setUserPassword } from "@/lib/auth-server";
 
 export async function PATCH(request: Request) {
+  const session = getSessionContext(request);
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   let body: unknown;
   try {
     body = await request.json();
@@ -21,10 +28,15 @@ export async function PATCH(request: Request) {
     );
   }
 
-  if (!verifyAdminPassword(currentPassword)) {
+  const db = getDb();
+  const user = db.prepare("SELECT password_hash, password_salt FROM users WHERE id = ?").get(
+    session.userId
+  ) as { password_hash: string; password_salt: string } | undefined;
+
+  if (!user || !verifyPassword(currentPassword, user.password_hash, user.password_salt)) {
     return NextResponse.json({ error: "Current password is incorrect" }, { status: 401 });
   }
 
-  setAdminPassword(newPassword);
+  setUserPassword(session.userId, newPassword);
   return NextResponse.json({ success: true });
 }

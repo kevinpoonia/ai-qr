@@ -1,43 +1,43 @@
 import { NextRequest, NextResponse } from "next/server";
 import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth";
 
-const PUBLIC_PAGES = ["/login", "/qr"];
-const PUBLIC_API_PREFIXES = ["/api/auth/login", "/api/generate-review", "/api/events"];
+const PUBLIC_PAGES = ["/login", "/signup"];
+const PUBLIC_PAGE_PREFIXES = ["/qr/"];
+const PUBLIC_API_PREFIXES = ["/api/auth/login", "/api/auth/signup", "/api/public/"];
 
-function isPublic(pathname: string, method: string): boolean {
-  if (PUBLIC_PAGES.some((p) => pathname === p || pathname.startsWith(`${p}/`))) return true;
-  if (PUBLIC_API_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`))) return true;
-
-  // The /qr flow needs to read settings and log/create customers without a session.
-  if (pathname === "/api/settings" && method === "GET") return true;
-  if (pathname === "/api/customers" && method === "POST") return true;
-  if (pathname === "/api/feedback" && method === "POST") return true;
-
+function isPublic(pathname: string): boolean {
+  if (PUBLIC_PAGES.includes(pathname)) return true;
+  if (PUBLIC_PAGE_PREFIXES.some((p) => pathname.startsWith(p))) return true;
+  if (PUBLIC_API_PREFIXES.some((p) => pathname.startsWith(p))) return true;
   return false;
 }
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  if (isPublic(pathname, request.method)) {
+  if (isPublic(pathname)) {
     return NextResponse.next();
   }
 
   const secret = process.env.SESSION_SECRET;
   const token = request.cookies.get(SESSION_COOKIE)?.value;
-  const authed = secret ? await verifySessionToken(token, secret) : false;
+  const session = secret ? await verifySessionToken(token, secret) : null;
 
-  if (authed) {
-    return NextResponse.next();
+  if (!session) {
+    if (pathname.startsWith("/api")) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const loginUrl = new URL("/login", request.url);
+    loginUrl.searchParams.set("next", pathname);
+    return NextResponse.redirect(loginUrl);
   }
 
-  if (pathname.startsWith("/api")) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const headers = new Headers(request.headers);
+  headers.set("x-user-id", String(session.userId));
+  headers.set("x-business-id", String(session.businessId));
+  headers.set("x-user-role", session.role);
 
-  const loginUrl = new URL("/login", request.url);
-  loginUrl.searchParams.set("next", pathname);
-  return NextResponse.redirect(loginUrl);
+  return NextResponse.next({ request: { headers } });
 }
 
 export const config = {

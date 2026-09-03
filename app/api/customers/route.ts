@@ -1,8 +1,14 @@
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
+import { getSessionContext } from "@/lib/session";
 import type { Customer } from "@/lib/types";
 
 export async function GET(request: Request) {
+  const session = getSessionContext(request);
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const { searchParams } = new URL(request.url);
   const q = searchParams.get("q")?.trim();
   const db = getDb();
@@ -11,16 +17,23 @@ export async function GET(request: Request) {
     ? (db
         .prepare(
           `SELECT * FROM customers
-           WHERE name LIKE ? OR phone LIKE ? OR email LIKE ?
+           WHERE business_id = ? AND (name LIKE ? OR phone LIKE ? OR email LIKE ?)
            ORDER BY created_at DESC`
         )
-        .all(`%${q}%`, `%${q}%`, `%${q}%`) as unknown as Customer[])
-    : (db.prepare(`SELECT * FROM customers ORDER BY created_at DESC`).all() as unknown as Customer[]);
+        .all(session.businessId, `%${q}%`, `%${q}%`, `%${q}%`) as unknown as Customer[])
+    : (db
+        .prepare(`SELECT * FROM customers WHERE business_id = ? ORDER BY created_at DESC`)
+        .all(session.businessId) as unknown as Customer[]);
 
   return NextResponse.json({ customers: rows });
 }
 
 export async function POST(request: Request) {
+  const session = getSessionContext(request);
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   let body: unknown;
   try {
     body = await request.json();
@@ -45,9 +58,9 @@ export async function POST(request: Request) {
   const db = getDb();
 
   const existing = cleanPhone
-    ? (db.prepare("SELECT id FROM customers WHERE phone = ?").get(cleanPhone) as
-        | { id: number }
-        | undefined)
+    ? (db
+        .prepare("SELECT id FROM customers WHERE business_id = ? AND phone = ?")
+        .get(session.businessId, cleanPhone) as { id: number } | undefined)
     : undefined;
 
   if (existing) {
@@ -77,10 +90,11 @@ export async function POST(request: Request) {
 
   const result = db
     .prepare(
-      `INSERT INTO customers (name, phone, email, notes, review_count, last_review_at)
-       VALUES (?, ?, ?, ?, ?, ?)`
+      `INSERT INTO customers (business_id, name, phone, email, notes, review_count, last_review_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`
     )
     .run(
+      session.businessId,
       cleanName || null,
       cleanPhone || null,
       cleanEmail || null,

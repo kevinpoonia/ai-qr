@@ -10,6 +10,7 @@ import type { FeedbackMode } from "@/lib/types";
 export default function Dashboard() {
   const [googleReviewsUrl, setGoogleReviewsUrl] = useState("");
   const [businessName, setBusinessName] = useState("");
+  const [slug, setSlug] = useState("");
   const [feedbackMode, setFeedbackMode] = useState<FeedbackMode>("gated");
   const [showSuccess, setShowSuccess] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -34,6 +35,7 @@ export default function Dashboard() {
         const data = await res.json();
         setGoogleReviewsUrl(data.googleReviewsUrl ?? "");
         setBusinessName(data.businessName ?? "");
+        setSlug(data.slug ?? "");
         setFeedbackMode(data.feedbackMode === "open" ? "open" : "gated");
       } catch (err) {
         console.error("Failed to load settings", err);
@@ -57,7 +59,7 @@ export default function Dashboard() {
     loadCustomerCount();
   }, []);
 
-  const qrLink = isClient ? `${window.location.origin}/qr` : '';
+  const qrLink = isClient && slug ? `${window.location.origin}/qr/${slug}` : '';
 
   const saveSettings = async () => {
     setError("");
@@ -347,7 +349,7 @@ export default function Dashboard() {
             <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-600">
               <ShieldCheck className="w-6 h-6" />
             </div>
-            <h2 className="text-2xl font-black tracking-tight">Admin Password</h2>
+            <h2 className="text-2xl font-black tracking-tight">Your Password</h2>
           </div>
           <div className="space-y-4">
             <input

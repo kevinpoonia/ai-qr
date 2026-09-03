@@ -1,9 +1,19 @@
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
+import { getBusinessIdBySlug } from "@/lib/business";
 
 const ALLOWED_TYPES = new Set(["scan", "rating", "review_completed", "feedback_submitted"]);
 
-export async function POST(request: Request) {
+export async function POST(
+  request: Request,
+  { params }: { params: Promise<{ slug: string }> }
+) {
+  const { slug } = await params;
+  const businessId = getBusinessIdBySlug(slug);
+  if (businessId === null) {
+    return NextResponse.json({ error: "Business not found" }, { status: 404 });
+  }
+
   let body: unknown;
   try {
     body = await request.json();
@@ -22,7 +32,11 @@ export async function POST(request: Request) {
       : null;
 
   const db = getDb();
-  db.prepare("INSERT INTO events (type, rating) VALUES (?, ?)").run(type, cleanRating);
+  db.prepare("INSERT INTO events (business_id, type, rating) VALUES (?, ?, ?)").run(
+    businessId,
+    type,
+    cleanRating
+  );
 
   return NextResponse.json({ success: true }, { status: 201 });
 }

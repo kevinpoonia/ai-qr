@@ -1,21 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useParams } from "next/navigation";
 import { ArrowRight, Star, RefreshCw, User, Phone, MessageSquare, CheckCircle2 } from "lucide-react";
 import type { FeedbackMode } from "@/lib/types";
 
-type Step = "rating" | "public_review" | "private_feedback" | "done";
-
-const logEvent = (type: string, rating?: number) => {
-  fetch("/api/events", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ type, rating }),
-  }).catch((err) => console.error("Failed to log event", err));
-};
+type Step = "loading" | "rating" | "public_review" | "private_feedback" | "done" | "not_found";
 
 export default function QRPage() {
-    const [step, setStep] = useState<Step>("rating");
+    const params = useParams<{ slug: string }>();
+    const slug = params.slug;
+
+    const [step, setStep] = useState<Step>("loading");
     const [rating, setRating] = useState(0);
     const [review, setReview] = useState<string>("");
     const [isLoading, setIsLoading] = useState(true);
@@ -26,6 +22,14 @@ export default function QRPage() {
     const [phone, setPhone] = useState("");
     const [comment, setComment] = useState("");
     const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
+
+    const logEvent = (type: string, eventRating?: number) => {
+        fetch(`/api/public/${slug}/events`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ type, rating: eventRating }),
+        }).catch((err) => console.error("Failed to log event", err));
+    };
 
     const fetchReview = async () => {
         setIsLoading(true);
@@ -42,20 +46,28 @@ export default function QRPage() {
     };
 
     useEffect(() => {
-        logEvent("scan");
+        if (!slug) return;
 
-        const loadSettings = async () => {
+        const loadBusiness = async () => {
             try {
-                const res = await fetch("/api/settings");
+                const res = await fetch(`/api/public/${slug}`);
+                if (!res.ok) {
+                    setStep("not_found");
+                    return;
+                }
                 const data = await res.json();
                 if (data.googleReviewsUrl) setGoogleUrl(data.googleReviewsUrl);
                 if (data.feedbackMode) setFeedbackMode(data.feedbackMode);
+                logEvent("scan");
+                setStep("rating");
             } catch (err) {
-                console.error("Failed to load settings", err);
+                console.error("Failed to load business", err);
+                setStep("not_found");
             }
         };
-        loadSettings();
-    }, []);
+        loadBusiness();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [slug]);
 
     const handleRating = (value: number) => {
         setRating(value);
@@ -69,7 +81,6 @@ export default function QRPage() {
                 setStep("private_feedback");
             }
         } else {
-            // Open mode: always offer the choice, review draft is pre-fetched either way.
             fetchReview();
             setStep("public_review");
         }
@@ -81,10 +92,10 @@ export default function QRPage() {
             setIsCopied(true);
 
             if (name.trim() || phone.trim()) {
-                fetch("/api/customers", {
+                fetch(`/api/public/${slug}/customers`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ name, phone, notes: review, logReview: true }),
+                    body: JSON.stringify({ name, phone, notes: review }),
                 }).catch((err) => console.error("Failed to log customer", err));
             }
 
@@ -101,7 +112,7 @@ export default function QRPage() {
     const submitFeedback = async () => {
         setIsSubmittingFeedback(true);
         try {
-            await fetch("/api/feedback", {
+            await fetch(`/api/public/${slug}/feedback`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ rating, comment, name, phone }),
@@ -114,6 +125,25 @@ export default function QRPage() {
             setIsSubmittingFeedback(false);
         }
     };
+
+    if (step === "loading") {
+        return (
+            <div className="min-h-screen bg-[#fafafa] flex items-center justify-center">
+                <RefreshCw className="w-8 h-8 text-purple-600 animate-spin" />
+            </div>
+        );
+    }
+
+    if (step === "not_found") {
+        return (
+            <div className="min-h-screen bg-[#fafafa] flex items-center justify-center p-6 text-center">
+                <div className="space-y-3">
+                    <h1 className="text-2xl font-black text-slate-900">Link not found</h1>
+                    <p className="text-slate-500 font-medium">This QR link doesn&apos;t match any business.</p>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen bg-[#fafafa] flex flex-col items-center justify-center p-6 space-y-8 antialiased">

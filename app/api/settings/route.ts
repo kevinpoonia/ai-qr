@@ -1,27 +1,44 @@
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
+import { getSessionContext } from "@/lib/session";
 import type { FeedbackMode } from "@/lib/types";
 
-interface SettingsRow {
-  business_name: string;
+interface BusinessRow {
+  name: string;
+  slug: string;
   google_reviews_url: string;
   feedback_mode: FeedbackMode;
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  const session = getSessionContext(request);
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const db = getDb();
   const row = db
-    .prepare("SELECT business_name, google_reviews_url, feedback_mode FROM settings WHERE id = 1")
-    .get() as SettingsRow | undefined;
+    .prepare("SELECT name, slug, google_reviews_url, feedback_mode FROM businesses WHERE id = ?")
+    .get(session.businessId) as BusinessRow | undefined;
+
+  if (!row) {
+    return NextResponse.json({ error: "Business not found" }, { status: 404 });
+  }
 
   return NextResponse.json({
-    businessName: row?.business_name ?? "",
-    googleReviewsUrl: row?.google_reviews_url ?? "",
-    feedbackMode: row?.feedback_mode ?? "gated",
+    businessName: row.name,
+    slug: row.slug,
+    googleReviewsUrl: row.google_reviews_url,
+    feedbackMode: row.feedback_mode,
   });
 }
 
 export async function PUT(request: Request) {
+  const session = getSessionContext(request);
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   let body: unknown;
   try {
     body = await request.json();
@@ -46,8 +63,8 @@ export async function PUT(request: Request) {
 
   const db = getDb();
   db.prepare(
-    "UPDATE settings SET business_name = ?, google_reviews_url = ?, feedback_mode = ?, updated_at = datetime('now') WHERE id = 1"
-  ).run(name, url, mode);
+    "UPDATE businesses SET name = ?, google_reviews_url = ?, feedback_mode = ? WHERE id = ?"
+  ).run(name, url, mode, session.businessId);
 
   return NextResponse.json({ businessName: name, googleReviewsUrl: url, feedbackMode: mode });
 }

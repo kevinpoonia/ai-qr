@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
+import { getSessionContext } from "@/lib/session";
 
 function parseId(idParam: string): number | null {
   const id = Number(idParam);
@@ -10,6 +11,11 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const session = getSessionContext(request);
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const { id: idParam } = await params;
   const id = parseId(idParam);
   if (id === null) {
@@ -29,7 +35,10 @@ export async function PATCH(
   }
 
   const db = getDb();
-  const result = db.prepare("UPDATE feedback SET status = ? WHERE id = ?").run(status, id);
+  const result = db
+    .prepare("UPDATE feedback SET status = ? WHERE id = ? AND business_id = ?")
+    .run(status, id, session.businessId);
+
   if (result.changes === 0) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
@@ -39,9 +48,14 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const session = getSessionContext(request);
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const { id: idParam } = await params;
   const id = parseId(idParam);
   if (id === null) {
@@ -49,7 +63,10 @@ export async function DELETE(
   }
 
   const db = getDb();
-  const result = db.prepare("DELETE FROM feedback WHERE id = ?").run(id);
+  const result = db
+    .prepare("DELETE FROM feedback WHERE id = ? AND business_id = ?")
+    .run(id, session.businessId);
+
   if (result.changes === 0) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }

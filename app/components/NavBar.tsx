@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
-import { QrCode, Users, BarChart3, MessageSquareWarning, LogOut } from "lucide-react";
+import { QrCode, Users, BarChart3, MessageSquareWarning, LogOut, UserCog } from "lucide-react";
 
 const links = [
   { href: "/", label: "QR & Settings", icon: QrCode },
   { href: "/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/feedback", label: "Feedback", icon: MessageSquareWarning },
   { href: "/customers", label: "Customers", icon: Users },
+  { href: "/team", label: "Team", icon: UserCog },
 ];
 
 export default function NavBar() {

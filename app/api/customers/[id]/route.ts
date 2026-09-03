@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
+import { getSessionContext } from "@/lib/session";
 import type { Customer } from "@/lib/types";
 
 function parseId(idParam: string): number | null {
@@ -11,6 +12,11 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const session = getSessionContext(request);
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const { id: idParam } = await params;
   const id = parseId(idParam);
   if (id === null) {
@@ -25,9 +31,9 @@ export async function PATCH(
   }
 
   const db = getDb();
-  const existing = db.prepare("SELECT * FROM customers WHERE id = ?").get(id) as
-    | Customer
-    | undefined;
+  const existing = db
+    .prepare("SELECT * FROM customers WHERE id = ? AND business_id = ?")
+    .get(id, session.businessId) as Customer | undefined;
 
   if (!existing) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -39,22 +45,23 @@ export async function PATCH(
   const nextEmail = typeof email === "string" ? email.trim() : existing.email;
   const nextNotes = typeof notes === "string" ? notes.trim() : existing.notes;
 
-  db.prepare("UPDATE customers SET name = ?, phone = ?, email = ?, notes = ? WHERE id = ?").run(
-    nextName || null,
-    nextPhone || null,
-    nextEmail || null,
-    nextNotes || null,
-    id
-  );
+  db.prepare(
+    "UPDATE customers SET name = ?, phone = ?, email = ?, notes = ? WHERE id = ? AND business_id = ?"
+  ).run(nextName || null, nextPhone || null, nextEmail || null, nextNotes || null, id, session.businessId);
 
   const updated = db.prepare("SELECT * FROM customers WHERE id = ?").get(id);
   return NextResponse.json({ customer: updated });
 }
 
 export async function DELETE(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const session = getSessionContext(request);
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const { id: idParam } = await params;
   const id = parseId(idParam);
   if (id === null) {
@@ -62,7 +69,9 @@ export async function DELETE(
   }
 
   const db = getDb();
-  const result = db.prepare("DELETE FROM customers WHERE id = ?").run(id);
+  const result = db
+    .prepare("DELETE FROM customers WHERE id = ? AND business_id = ?")
+    .run(id, session.businessId);
 
   if (result.changes === 0) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
