@@ -1,14 +1,16 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Globe, Copy, Download, Star, ExternalLink, Settings as SettingsIcon, CheckCircle2, Users, Loader2 } from "lucide-react";
+import { Globe, Copy, Download, Star, ExternalLink, Settings as SettingsIcon, CheckCircle2, Users, Loader2, ShieldCheck, KeyRound } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import Link from "next/link";
 import NavBar from "./components/NavBar";
+import type { FeedbackMode } from "@/lib/types";
 
 export default function Dashboard() {
   const [googleReviewsUrl, setGoogleReviewsUrl] = useState("");
   const [businessName, setBusinessName] = useState("");
+  const [feedbackMode, setFeedbackMode] = useState<FeedbackMode>("gated");
   const [showSuccess, setShowSuccess] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -16,6 +18,12 @@ export default function Dashboard() {
   const [customerCount, setCustomerCount] = useState<number | null>(null);
   const qrRef = useRef<HTMLDivElement>(null);
   const [isClient, setIsClient] = useState(false);
+
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [passwordError, setPasswordError] = useState("");
+  const [passwordSuccess, setPasswordSuccess] = useState(false);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
 
   useEffect(() => {
     setIsClient(true);
@@ -26,6 +34,7 @@ export default function Dashboard() {
         const data = await res.json();
         setGoogleReviewsUrl(data.googleReviewsUrl ?? "");
         setBusinessName(data.businessName ?? "");
+        setFeedbackMode(data.feedbackMode === "open" ? "open" : "gated");
       } catch (err) {
         console.error("Failed to load settings", err);
         setError("Could not load settings from the server.");
@@ -57,7 +66,7 @@ export default function Dashboard() {
       const res = await fetch("/api/settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ businessName, googleReviewsUrl }),
+        body: JSON.stringify({ businessName, googleReviewsUrl, feedbackMode }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -102,6 +111,35 @@ export default function Dashboard() {
 
   const copyLink = () => {
     navigator.clipboard.writeText(qrLink);
+  };
+
+  const changePassword = async () => {
+    setPasswordError("");
+    setPasswordSuccess(false);
+    if (newPassword.length < 8) {
+      setPasswordError("New password must be at least 8 characters.");
+      return;
+    }
+    setIsChangingPassword(true);
+    try {
+      const res = await fetch("/api/auth/password", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ currentPassword, newPassword }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Failed to change password");
+      }
+      setPasswordSuccess(true);
+      setCurrentPassword("");
+      setNewPassword("");
+      setTimeout(() => setPasswordSuccess(false), 3000);
+    } catch (err) {
+      setPasswordError(err instanceof Error ? err.message : "Failed to change password");
+    } finally {
+      setIsChangingPassword(false);
+    }
   };
 
   if (!isClient || isLoading) return null;
@@ -234,6 +272,43 @@ export default function Dashboard() {
                   )}
                 </div>
 
+                <div className="space-y-4">
+                  <label className="flex items-center gap-2 text-sm font-black uppercase tracking-widest text-slate-400">
+                    Feedback Routing
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <button
+                      onClick={() => setFeedbackMode("gated")}
+                      className={`text-left p-5 rounded-2xl border-2 transition-all ${
+                        feedbackMode === "gated"
+                          ? "border-purple-200 bg-purple-50"
+                          : "border-slate-100 bg-slate-50 hover:border-slate-200"
+                      }`}
+                    >
+                      <p className="font-bold text-slate-900 text-sm">Gated</p>
+                      <p className="text-xs text-slate-500 font-medium mt-1 leading-relaxed">
+                        4-5★ go to your review link. 1-3★ go to a private inbox only.
+                      </p>
+                    </button>
+                    <button
+                      onClick={() => setFeedbackMode("open")}
+                      className={`text-left p-5 rounded-2xl border-2 transition-all ${
+                        feedbackMode === "open"
+                          ? "border-purple-200 bg-purple-50"
+                          : "border-slate-100 bg-slate-50 hover:border-slate-200"
+                      }`}
+                    >
+                      <p className="font-bold text-slate-900 text-sm">Always Open</p>
+                      <p className="text-xs text-slate-500 font-medium mt-1 leading-relaxed">
+                        Every customer can choose: public review or private feedback.
+                      </p>
+                    </button>
+                  </div>
+                  <p className="text-xs text-slate-400 font-medium leading-relaxed">
+                    Heads up: routing only low ratings to a private inbox (&quot;Gated&quot;) is the pattern targeted by the FTC&apos;s 2024 rule on review gating in the US. &quot;Always Open&quot; is the safer default if you operate there.
+                  </p>
+                </div>
+
                 <div className="pt-4">
                   <button
                     onClick={saveSettings}
@@ -264,6 +339,45 @@ export default function Dashboard() {
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-[3rem] p-12 shadow-[0_40px_80px_-20px_rgba(0,0,0,0.05)] border border-slate-100 max-w-xl">
+          <div className="flex items-center gap-4 mb-8">
+            <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-600">
+              <ShieldCheck className="w-6 h-6" />
+            </div>
+            <h2 className="text-2xl font-black tracking-tight">Admin Password</h2>
+          </div>
+          <div className="space-y-4">
+            <input
+              type="password"
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              placeholder="Current password"
+              className="w-full bg-slate-50 border-2 border-slate-50 rounded-2xl px-6 py-4 text-sm font-medium focus:bg-white focus:border-purple-200 focus:ring-4 focus:ring-purple-50 outline-none transition-all placeholder:text-slate-300"
+            />
+            <input
+              type="password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              placeholder="New password (min. 8 characters)"
+              className="w-full bg-slate-50 border-2 border-slate-50 rounded-2xl px-6 py-4 text-sm font-medium focus:bg-white focus:border-purple-200 focus:ring-4 focus:ring-purple-50 outline-none transition-all placeholder:text-slate-300"
+            />
+            {passwordError && <p className="text-sm text-red-500 font-bold">{passwordError}</p>}
+            <button
+              onClick={changePassword}
+              disabled={isChangingPassword || !currentPassword || !newPassword}
+              className="inline-flex items-center gap-2 px-8 py-4 rounded-2xl bg-slate-950 text-white font-bold hover:bg-black transition-all active:scale-[0.98] disabled:opacity-60"
+            >
+              {isChangingPassword ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <KeyRound className="w-4 h-4" />
+              )}
+              Update Password
+              {passwordSuccess && <CheckCircle2 className="w-4 h-4" />}
+            </button>
           </div>
         </div>
 

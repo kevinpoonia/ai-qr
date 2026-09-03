@@ -1,36 +1,41 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AI QR System
 
-## Getting Started
+A QR-code review funnel for local businesses: customers scan a code, rate their visit, get an AI-drafted review to post on Google (or send private feedback instead), and every scan is tracked in a built-in customer CRM and analytics dashboard.
 
-First, run the development server:
+## Setup
 
 ```bash
+npm install
+cp .env.example .env.local
+# edit .env.local and set SESSION_SECRET to a random value:
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Data is stored locally in a SQLite file at `data/app.db` (created automatically, gitignored).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+On first run, an admin account is created with the password **`admin123`** — a warning is printed to the console as a reminder. Log in at `/login` and change it immediately from the Settings page.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Pages
 
-## Learn More
+- `/` — QR code, download/share, business settings, feedback-routing mode, admin password
+- `/qr` — the public customer-facing flow (star rating → AI review draft or private feedback)
+- `/analytics` — scan counts, conversion rate, rating distribution, 14-day trend
+- `/feedback` — private feedback inbox for low ratings
+- `/customers` — customer CRM: search, add/edit/delete, review counts
 
-To learn more about Next.js, take a look at the following resources:
+## Feedback routing modes
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- **Gated** — 4-5★ visitors are guided to your public review link; 1-3★ visitors are routed to a private feedback inbox only.
+- **Always Open** — every visitor can choose between leaving a public review or sending private feedback, regardless of rating.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+The FTC's 2024 rule on review gating targets exactly the "Gated" pattern in the US; "Always Open" is the compliant default if that applies to you. Both are available from Settings.
 
-## Deploy on Vercel
+## Stack
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Next.js 16 (App Router, Turbopack) · React 19 · Tailwind CSS 4 · SQLite via Node's built-in `node:sqlite` (no native build step) · `qrcode.react` for QR rendering.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Deploying
+
+This app needs a writable filesystem for its SQLite database, so it won't run as-is on purely serverless/edge platforms (e.g. Vercel's default runtime) — deploy it somewhere with persistent disk (a VM, a container with an attached volume, `next start` on your own server, etc.), and always set `SESSION_SECRET` in the environment.
