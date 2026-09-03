@@ -1,11 +1,19 @@
 import { db } from "./db";
 import { TOTAL_REVIEW_TEMPLATES } from "./reviewTemplates";
 
-// Numbers coprime with 1000 (2^3 * 5^3): any number not divisible by 2 or 5.
-// Stepping through 0..999 by such a step visits every value exactly once
-// before repeating — a full-period permutation with no table to store.
-const COPRIME_STEPS = Array.from({ length: 500 }, (_, i) => i * 2 + 1).filter(
-  (n) => n % 5 !== 0
+function gcd(a: number, b: number): number {
+  while (b !== 0) {
+    [a, b] = [b, a % b];
+  }
+  return a;
+}
+
+// Every step coprime with TOTAL_REVIEW_TEMPLATES. Stepping through 0..total-1
+// by such a step visits every value exactly once before repeating — a
+// full-period permutation with no table to store. Computed generically (not
+// hardcoded to a specific total) so the template pool sizes can change freely.
+const COPRIME_STEPS = Array.from({ length: TOTAL_REVIEW_TEMPLATES - 1 }, (_, i) => i + 1).filter(
+  (n) => gcd(n, TOTAL_REVIEW_TEMPLATES) === 1
 );
 
 function randomStep(): number {
@@ -20,7 +28,7 @@ function randomOffset(): number {
 // happens as one atomic UPSERT, so Postgres's row-level locking serializes
 // concurrent requests for the same business — no two callers can ever get
 // back the same counter value, and therefore never the same review, until a
-// full 1000-review cycle completes.
+// full cycle through every template completes.
 export async function nextReviewIndexForBusiness(businessId: number): Promise<number> {
   const sql = await db();
   const step = randomStep();

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { ArrowRight, Star, RefreshCw, User, Phone, MessageSquare, CheckCircle2 } from "lucide-react";
+import { ArrowRight, Star, RefreshCw, MessageSquare, CheckCircle2 } from "lucide-react";
 import type { FeedbackMode } from "@/lib/types";
 
 type Step = "loading" | "rating" | "public_review" | "private_feedback" | "done" | "not_found" | "suspended";
@@ -18,8 +18,6 @@ export default function QRPage() {
     const [isCopied, setIsCopied] = useState(false);
     const [googleUrl, setGoogleUrl] = useState("");
     const [feedbackMode, setFeedbackMode] = useState<FeedbackMode>("gated");
-    const [name, setName] = useState("");
-    const [phone, setPhone] = useState("");
     const [comment, setComment] = useState("");
     const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
 
@@ -95,14 +93,6 @@ export default function QRPage() {
             await navigator.clipboard.writeText(review);
             setIsCopied(true);
 
-            if (name.trim() || phone.trim()) {
-                fetch(`/api/public/${slug}/customers`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ name, phone, notes: review }),
-                }).catch((err) => console.error("Failed to log customer", err));
-            }
-
             logEvent("review_completed", rating);
 
             setTimeout(() => {
@@ -119,7 +109,7 @@ export default function QRPage() {
             await fetch(`/api/public/${slug}/feedback`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ rating, comment, name, phone }),
+                body: JSON.stringify({ rating, comment }),
             });
             logEvent("feedback_submitted", rating);
             setStep("done");
@@ -226,34 +216,6 @@ export default function QRPage() {
                                 )}
                             </div>
 
-                            <div className="space-y-3">
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
-                                    Stay in touch (optional)
-                                </p>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                    <div className="relative">
-                                        <User className="w-4 h-4 text-slate-300 absolute left-4 top-1/2 -translate-y-1/2" />
-                                        <input
-                                            type="text"
-                                            value={name}
-                                            onChange={(e) => setName(e.target.value)}
-                                            placeholder="Your name"
-                                            className="w-full bg-slate-50 border-2 border-slate-50 rounded-xl pl-10 pr-4 py-3 text-sm font-medium focus:bg-white focus:border-purple-200 focus:ring-4 focus:ring-purple-50 outline-none transition-all placeholder:text-slate-300"
-                                        />
-                                    </div>
-                                    <div className="relative">
-                                        <Phone className="w-4 h-4 text-slate-300 absolute left-4 top-1/2 -translate-y-1/2" />
-                                        <input
-                                            type="tel"
-                                            value={phone}
-                                            onChange={(e) => setPhone(e.target.value)}
-                                            placeholder="Phone number"
-                                            className="w-full bg-slate-50 border-2 border-slate-50 rounded-xl pl-10 pr-4 py-3 text-sm font-medium focus:bg-white focus:border-purple-200 focus:ring-4 focus:ring-purple-50 outline-none transition-all placeholder:text-slate-300"
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-
                             <div className="space-y-4">
                                 <button
                                     disabled={isLoading}
@@ -305,28 +267,6 @@ export default function QRPage() {
                                 rows={4}
                                 className="w-full bg-slate-50 border-2 border-slate-50 rounded-2xl px-5 py-4 text-sm font-medium focus:bg-white focus:border-purple-200 focus:ring-4 focus:ring-purple-50 outline-none transition-all placeholder:text-slate-300 resize-none"
                             />
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                <div className="relative">
-                                    <User className="w-4 h-4 text-slate-300 absolute left-4 top-1/2 -translate-y-1/2" />
-                                    <input
-                                        type="text"
-                                        value={name}
-                                        onChange={(e) => setName(e.target.value)}
-                                        placeholder="Your name (optional)"
-                                        className="w-full bg-slate-50 border-2 border-slate-50 rounded-xl pl-10 pr-4 py-3 text-sm font-medium focus:bg-white focus:border-purple-200 focus:ring-4 focus:ring-purple-50 outline-none transition-all placeholder:text-slate-300"
-                                    />
-                                </div>
-                                <div className="relative">
-                                    <Phone className="w-4 h-4 text-slate-300 absolute left-4 top-1/2 -translate-y-1/2" />
-                                    <input
-                                        type="tel"
-                                        value={phone}
-                                        onChange={(e) => setPhone(e.target.value)}
-                                        placeholder="Phone (optional)"
-                                        className="w-full bg-slate-50 border-2 border-slate-50 rounded-xl pl-10 pr-4 py-3 text-sm font-medium focus:bg-white focus:border-purple-200 focus:ring-4 focus:ring-purple-50 outline-none transition-all placeholder:text-slate-300"
-                                    />
-                                </div>
-                            </div>
                             <button
                                 onClick={submitFeedback}
                                 disabled={isSubmittingFeedback || !comment.trim()}
