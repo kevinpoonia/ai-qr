@@ -13,7 +13,7 @@ interface BusinessRow {
 
 export async function GET(request: Request) {
   const session = getSessionContext(request);
-  if (!session) {
+  if (!session || session.businessId === null) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -39,7 +39,7 @@ export async function GET(request: Request) {
 
 export async function PUT(request: Request) {
   const session = getSessionContext(request);
-  if (!session) {
+  if (!session || session.businessId === null) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

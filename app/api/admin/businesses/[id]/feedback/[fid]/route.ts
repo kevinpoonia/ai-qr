@@ -9,16 +9,17 @@ function parseId(idParam: string): number | null {
 
 export async function PATCH(
   request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string; fid: string }> }
 ) {
   const session = getSessionContext(request);
-  if (!session || session.businessId === null) {
+  if (!session || session.role !== "platform_admin") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { id: idParam } = await params;
-  const id = parseId(idParam);
-  if (id === null) {
+  const { id: idParam, fid: fidParam } = await params;
+  const businessId = parseId(idParam);
+  const feedbackId = parseId(fidParam);
+  if (businessId === null || feedbackId === null) {
     return NextResponse.json({ error: "Invalid id" }, { status: 400 });
   }
 
@@ -34,7 +35,7 @@ export async function PATCH(
     return NextResponse.json({ error: "status must be 'new' or 'resolved'" }, { status: 400 });
   }
 
-  const feedback = await setFeedbackStatus(id, session.businessId, status);
+  const feedback = await setFeedbackStatus(feedbackId, businessId, status);
   if (!feedback) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
@@ -44,20 +45,21 @@ export async function PATCH(
 
 export async function DELETE(
   request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string; fid: string }> }
 ) {
   const session = getSessionContext(request);
-  if (!session || session.businessId === null) {
+  if (!session || session.role !== "platform_admin") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { id: idParam } = await params;
-  const id = parseId(idParam);
-  if (id === null) {
+  const { id: idParam, fid: fidParam } = await params;
+  const businessId = parseId(idParam);
+  const feedbackId = parseId(fidParam);
+  if (businessId === null || feedbackId === null) {
     return NextResponse.json({ error: "Invalid id" }, { status: 400 });
   }
 
-  const deleted = await deleteFeedbackEntry(id, session.businessId);
+  const deleted = await deleteFeedbackEntry(feedbackId, businessId);
   if (!deleted) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }

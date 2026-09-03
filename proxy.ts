@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth";
+import { ADMIN_SESSION_COOKIE, SESSION_COOKIE, verifySessionToken } from "@/lib/auth";
 
 const PUBLIC_PAGES = ["/login", "/signup"];
 const PUBLIC_PAGE_PREFIXES = ["/qr/"];
@@ -33,13 +33,16 @@ export async function proxy(request: NextRequest) {
   }
 
   const isAdminRoute = pathname.startsWith("/admin") || pathname.startsWith("/api/admin");
+  // Reachable by an impersonated owner/staff session (its role isn't
+  // platform_admin), so it must not be caught by the admin-role gate below.
+  const isExitImpersonation = pathname === "/api/admin/exit-impersonation";
   const isAuthRoute = pathname.startsWith("/api/auth/");
 
   if (session.role === "platform_admin") {
     if (!isAdminRoute && !isAuthRoute) {
       return NextResponse.redirect(new URL("/admin", request.url));
     }
-  } else if (isAdminRoute) {
+  } else if (isAdminRoute && !isExitImpersonation) {
     if (pathname.startsWith("/api")) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
@@ -52,6 +55,9 @@ export async function proxy(request: NextRequest) {
     headers.set("x-business-id", String(session.businessId));
   }
   headers.set("x-user-role", session.role);
+  if (request.cookies.get(ADMIN_SESSION_COOKIE)?.value) {
+    headers.set("x-impersonating", "1");
+  }
 
   return NextResponse.next({ request: { headers } });
 }

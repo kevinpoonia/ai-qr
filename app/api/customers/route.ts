@@ -1,34 +1,24 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getSessionContext } from "@/lib/session";
+import { listCustomers } from "@/lib/customers";
 
 export async function GET(request: Request) {
   const session = getSessionContext(request);
-  if (!session) {
+  if (!session || session.businessId === null) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const { searchParams } = new URL(request.url);
   const q = searchParams.get("q")?.trim();
-  const sql = await db();
+  const customers = await listCustomers(session.businessId, q || undefined);
 
-  const rows = q
-    ? await sql`
-        SELECT * FROM customers
-        WHERE business_id = ${session.businessId}
-          AND (name ILIKE ${`%${q}%`} OR phone ILIKE ${`%${q}%`} OR email ILIKE ${`%${q}%`})
-        ORDER BY created_at DESC
-      `
-    : await sql`
-        SELECT * FROM customers WHERE business_id = ${session.businessId} ORDER BY created_at DESC
-      `;
-
-  return NextResponse.json({ customers: rows });
+  return NextResponse.json({ customers });
 }
 
 export async function POST(request: Request) {
   const session = getSessionContext(request);
-  if (!session) {
+  if (!session || session.businessId === null) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

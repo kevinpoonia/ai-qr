@@ -13,7 +13,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = getSessionContext(request);
-  if (!session) {
+  if (!session || session.businessId === null) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -61,7 +61,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = getSessionContext(request);
-  if (!session) {
+  if (!session || session.businessId === null) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

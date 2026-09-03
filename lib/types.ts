@@ -1,5 +1,6 @@
 export type FeedbackMode = "gated" | "open";
 export type Role = "owner" | "staff" | "platform_admin";
+export type BusinessStatus = "active" | "suspended";
 
 export interface Business {
   id: number;
@@ -7,6 +8,7 @@ export interface Business {
   slug: string;
   google_reviews_url: string;
   feedback_mode: FeedbackMode;
+  status: BusinessStatus;
   created_at: string;
 }
 
@@ -17,8 +19,15 @@ export interface AdminBusiness {
   location: string;
   google_reviews_url: string;
   feedback_mode: FeedbackMode;
+  status: BusinessStatus;
   created_at: string;
   owner_email: string | null;
+}
+
+export interface PlatformAdminUser {
+  id: number;
+  email: string;
+  created_at: string;
 }
 
 export interface TeamMember {

@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import { ArrowRight, Star, RefreshCw, User, Phone, MessageSquare, CheckCircle2 } from "lucide-react";
 import type { FeedbackMode } from "@/lib/types";
 
-type Step = "loading" | "rating" | "public_review" | "private_feedback" | "done" | "not_found";
+type Step = "loading" | "rating" | "public_review" | "private_feedback" | "done" | "not_found" | "suspended";
 
 export default function QRPage() {
     const params = useParams<{ slug: string }>();
@@ -56,6 +56,10 @@ export default function QRPage() {
                     return;
                 }
                 const data = await res.json();
+                if (data.suspended) {
+                    setStep("suspended");
+                    return;
+                }
                 if (data.googleReviewsUrl) setGoogleUrl(data.googleReviewsUrl);
                 if (data.feedbackMode) setFeedbackMode(data.feedbackMode);
                 logEvent("scan");
@@ -140,6 +144,19 @@ export default function QRPage() {
                 <div className="space-y-3">
                     <h1 className="text-2xl font-black text-slate-900">Link not found</h1>
                     <p className="text-slate-500 font-medium">This QR link doesn&apos;t match any business.</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (step === "suspended") {
+        return (
+            <div className="min-h-screen bg-[#fafafa] flex items-center justify-center p-6 text-center">
+                <div className="space-y-3">
+                    <h1 className="text-2xl font-black text-slate-900">Temporarily unavailable</h1>
+                    <p className="text-slate-500 font-medium max-w-sm mx-auto">
+                        This page isn&apos;t accepting reviews right now. Please check back later.
+                    </p>
                 </div>
             </div>
         );

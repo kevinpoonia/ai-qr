@@ -1,30 +1,22 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
 import { getSessionContext } from "@/lib/session";
-import { createStaffUser, findUserByEmail } from "@/lib/auth-server";
+import { createPlatformAdmin, findUserByEmail, listPlatformAdmins } from "@/lib/auth-server";
+import { logAdminAction } from "@/lib/auditLog";
 
 export async function GET(request: Request) {
   const session = getSessionContext(request);
-  if (!session || session.businessId === null) {
+  if (!session || session.role !== "platform_admin") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const sql = await db();
-  const rows = await sql`
-    SELECT id, email, role, created_at FROM users
-    WHERE business_id = ${session.businessId} ORDER BY created_at ASC
-  `;
-
-  return NextResponse.json({ users: rows });
+  const admins = await listPlatformAdmins();
+  return NextResponse.json({ admins });
 }
 
 export async function POST(request: Request) {
   const session = getSessionContext(request);
-  if (!session) {
+  if (!session || session.role !== "platform_admin") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  if (session.role !== "owner" || session.businessId === null) {
-    return NextResponse.json({ error: "Only the owner can add team members" }, { status: 403 });
   }
 
   let body: unknown;
@@ -44,11 +36,12 @@ export async function POST(request: Request) {
   if (cleanPassword.length < 8) {
     return NextResponse.json({ error: "Password must be at least 8 characters" }, { status: 400 });
   }
-
   if (await findUserByEmail(cleanEmail)) {
     return NextResponse.json({ error: "An account with that email already exists" }, { status: 409 });
   }
 
-  const { userId } = await createStaffUser(session.businessId, cleanEmail, cleanPassword);
-  return NextResponse.json({ id: userId, email: cleanEmail, role: "staff" }, { status: 201 });
+  const { userId } = await createPlatformAdmin(cleanEmail, cleanPassword);
+  await logAdminAction(session.userId, "create_admin", null, cleanEmail);
+
+  return NextResponse.json({ id: userId, email: cleanEmail }, { status: 201 });
 }

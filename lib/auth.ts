@@ -4,6 +4,9 @@
 import type { Role } from "./types";
 
 export const SESSION_COOKIE = "aiqr_session";
+// Holds the platform_admin's own session token while impersonating a client,
+// so "exit impersonation" can restore it. Never sent to non-admin code paths.
+export const ADMIN_SESSION_COOKIE = "aiqr_admin_session";
 export const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 7; // 7 days
 
 export interface SessionPayload {

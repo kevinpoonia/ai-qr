@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSessionToken, SESSION_COOKIE, SESSION_MAX_AGE_SECONDS } from "@/lib/auth";
 import { findUserByEmail, verifyUserPassword } from "@/lib/auth-server";
+import { db } from "@/lib/db";
 
 export async function POST(request: Request) {
   let body: unknown;
@@ -21,6 +22,18 @@ export async function POST(request: Request) {
   const user = await findUserByEmail(cleanEmail);
   if (!user || !verifyUserPassword(user, cleanPassword)) {
     return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
+  }
+
+  if (user.role !== "platform_admin" && user.business_id !== null) {
+    const sql = await db();
+    const bizRows = await sql`SELECT status FROM businesses WHERE id = ${user.business_id}`;
+    const biz = bizRows[0] as { status: string } | undefined;
+    if (biz?.status === "suspended") {
+      return NextResponse.json(
+        { error: "This account has been suspended. Contact support." },
+        { status: 403 }
+      );
+    }
   }
 
   const secret = process.env.SESSION_SECRET;

@@ -23,9 +23,12 @@ async function ensureSchema(sql: NeonQueryFunction<false, false>): Promise<void>
       location TEXT NOT NULL DEFAULT '',
       google_reviews_url TEXT NOT NULL DEFAULT '',
       feedback_mode TEXT NOT NULL DEFAULT 'gated',
+      status TEXT NOT NULL DEFAULT 'active',
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )
   `;
+
+  await sql`ALTER TABLE businesses ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'active'`;
 
   await sql`
     CREATE TABLE IF NOT EXISTS users (
@@ -95,6 +98,17 @@ async function ensureSchema(sql: NeonQueryFunction<false, false>): Promise<void>
       step INTEGER NOT NULL,
       offset_val INTEGER NOT NULL,
       counter BIGINT NOT NULL DEFAULT 0
+    )
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS admin_audit_log (
+      id SERIAL PRIMARY KEY,
+      admin_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      action TEXT NOT NULL,
+      business_id INTEGER REFERENCES businesses(id) ON DELETE SET NULL,
+      detail TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )
   `;
 }

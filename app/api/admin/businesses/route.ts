@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getSessionContext } from "@/lib/session";
 import { createBusinessWithOwner, findUserByEmail } from "@/lib/auth-server";
+import { logAdminAction } from "@/lib/auditLog";
 
 export async function GET(request: Request) {
   const session = getSessionContext(request);
@@ -11,7 +12,7 @@ export async function GET(request: Request) {
 
   const sql = await db();
   const rows = await sql`
-    SELECT b.id, b.name, b.slug, b.location, b.google_reviews_url, b.feedback_mode, b.created_at,
+    SELECT b.id, b.name, b.slug, b.location, b.google_reviews_url, b.feedback_mode, b.status, b.created_at,
            (SELECT email FROM users WHERE business_id = b.id AND role = 'owner' ORDER BY id ASC LIMIT 1) AS owner_email
     FROM businesses b
     ORDER BY b.created_at DESC
@@ -59,6 +60,8 @@ export async function POST(request: Request) {
     cleanPassword,
     cleanLocation
   );
+
+  await logAdminAction(session.userId, "onboard_client", businessId, cleanBusinessName);
 
   return NextResponse.json({ id: businessId, slug }, { status: 201 });
 }

@@ -17,5 +17,6 @@ export async function GET(request: Request) {
     businessId: session.businessId,
     role: session.role,
     email: user?.email ?? "",
+    impersonating: request.headers.get("x-impersonating") === "1",
   });
 }
