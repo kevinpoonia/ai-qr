@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { getSessionContext } from "@/lib/session";
 import { createBusinessWithOwner, findUserByEmail } from "@/lib/auth-server";
 import { logAdminAction } from "@/lib/auditLog";
+import { BUSINESS_CATEGORIES, DEFAULT_CATEGORY_SLUG } from "@/lib/categories";
 
 export async function GET(request: Request) {
   const session = getSessionContext(request);
@@ -12,7 +13,7 @@ export async function GET(request: Request) {
 
   const sql = await db();
   const rows = await sql`
-    SELECT b.id, b.name, b.slug, b.location, b.google_reviews_url, b.feedback_mode, b.status, b.created_at,
+    SELECT b.id, b.name, b.slug, b.location, b.google_reviews_url, b.feedback_mode, b.status, b.category, b.created_at,
            (SELECT email FROM users WHERE business_id = b.id AND role = 'owner' ORDER BY id ASC LIMIT 1) AS owner_email
     FROM businesses b
     ORDER BY b.created_at DESC
@@ -34,11 +35,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const { businessName, location, email, password } = body as Record<string, unknown>;
+  const { businessName, location, email, password, category } = body as Record<string, unknown>;
   const cleanBusinessName = typeof businessName === "string" ? businessName.trim() : "";
   const cleanLocation = typeof location === "string" ? location.trim() : "";
   const cleanEmail = typeof email === "string" ? email.trim().toLowerCase() : "";
   const cleanPassword = typeof password === "string" ? password : "";
+  const cleanCategory =
+    typeof category === "string" && BUSINESS_CATEGORIES.some((c) => c.slug === category)
+      ? category
+      : DEFAULT_CATEGORY_SLUG;
 
   if (!cleanBusinessName) {
     return NextResponse.json({ error: "Business name is required" }, { status: 400 });
@@ -58,7 +63,8 @@ export async function POST(request: Request) {
     cleanBusinessName,
     cleanEmail,
     cleanPassword,
-    cleanLocation
+    cleanLocation,
+    cleanCategory
   );
 
   await logAdminAction(session.userId, "onboard_client", businessId, cleanBusinessName);

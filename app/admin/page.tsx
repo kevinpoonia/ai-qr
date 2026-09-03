@@ -24,6 +24,7 @@ import { QRCodeSVG } from "qrcode.react";
 import AdminNavBar from "./components/AdminNavBar";
 import type { AdminBusiness } from "@/lib/types";
 import type { AuditLogEntry } from "@/lib/auditLog";
+import { BUSINESS_CATEGORIES, DEFAULT_CATEGORY_SLUG } from "@/lib/categories";
 
 function downloadQrForSlug(slug: string) {
   const container = document.getElementById(`admin-qr-${slug}`);
@@ -53,6 +54,10 @@ function downloadQrForSlug(slug: string) {
   img.src = "data:image/svg+xml;base64," + btoa(svgData);
 }
 
+function categoryLabel(slug: string): string {
+  return BUSINESS_CATEGORIES.find((c) => c.slug === slug)?.label ?? "General / Other";
+}
+
 export default function AdminPage() {
   const router = useRouter();
   const [businesses, setBusinesses] = useState<AdminBusiness[]>([]);
@@ -71,6 +76,7 @@ export default function AdminPage() {
   const [location, setLocation] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [category, setCategory] = useState(DEFAULT_CATEGORY_SLUG);
   const [isSaving, setIsSaving] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
   const [formError, setFormError] = useState("");
@@ -117,7 +123,7 @@ export default function AdminPage() {
       const res = await fetch("/api/admin/businesses", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ businessName, location, email, password }),
+        body: JSON.stringify({ businessName, location, email, password, category }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -127,6 +133,7 @@ export default function AdminPage() {
       setLocation("");
       setEmail("");
       setPassword("");
+      setCategory(DEFAULT_CATEGORY_SLUG);
       setShowAddForm(false);
       await load();
     } catch (err) {
@@ -287,6 +294,17 @@ export default function AdminPage() {
                   placeholder="Temporary password"
                   className="bg-slate-50 border-2 border-slate-100 rounded-xl px-4 py-3 text-sm font-medium focus:border-purple-200 focus:ring-4 focus:ring-purple-50 outline-none transition-all"
                 />
+                <select
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  className="bg-slate-50 border-2 border-slate-100 rounded-xl px-4 py-3 text-sm font-medium focus:border-purple-200 focus:ring-4 focus:ring-purple-50 outline-none transition-all sm:col-span-2"
+                >
+                  {BUSINESS_CATEGORIES.map((c) => (
+                    <option key={c.slug} value={c.slug}>
+                      {c.label}
+                    </option>
+                  ))}
+                </select>
               </div>
               {formError && <p className="text-sm text-red-500 font-bold">{formError}</p>}
               <button
@@ -334,6 +352,9 @@ export default function AdminPage() {
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
                           <p className="font-bold text-slate-900 text-sm truncate">{b.name}</p>
+                          <span className="px-2 py-0.5 rounded-md bg-purple-100 text-purple-600 text-[10px] font-black uppercase tracking-widest shrink-0">
+                            {categoryLabel(b.category)}
+                          </span>
                           {b.status === "suspended" && (
                             <span className="px-2 py-0.5 rounded-md bg-rose-100 text-rose-600 text-[10px] font-black uppercase tracking-widest">
                               Suspended

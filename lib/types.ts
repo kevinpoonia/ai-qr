@@ -9,6 +9,7 @@ export interface Business {
   google_reviews_url: string;
   feedback_mode: FeedbackMode;
   status: BusinessStatus;
+  category: string;
   created_at: string;
 }
 
@@ -20,6 +21,7 @@ export interface AdminBusiness {
   google_reviews_url: string;
   feedback_mode: FeedbackMode;
   status: BusinessStatus;
+  category: string;
   created_at: string;
   owner_email: string | null;
 }

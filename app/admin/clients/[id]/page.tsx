@@ -19,6 +19,7 @@ import Link from "next/link";
 import { QRCodeSVG } from "qrcode.react";
 import AdminNavBar from "../../components/AdminNavBar";
 import type { AdminBusiness, Customer, FeedbackEntry, FeedbackMode } from "@/lib/types";
+import { BUSINESS_CATEGORIES, DEFAULT_CATEGORY_SLUG } from "@/lib/categories";
 
 interface AnalyticsData {
   totalScans: number;
@@ -47,6 +48,7 @@ export default function AdminClientDetailPage() {
   const [googleReviewsUrl, setGoogleReviewsUrl] = useState("");
   const [feedbackMode, setFeedbackMode] = useState<FeedbackMode>("gated");
   const [slug, setSlug] = useState("");
+  const [category, setCategory] = useState(DEFAULT_CATEGORY_SLUG);
   const [isSaving, setIsSaving] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [isClient, setIsClient] = useState(false);
@@ -76,6 +78,7 @@ export default function AdminClientDetailPage() {
       setGoogleReviewsUrl(b.google_reviews_url);
       setFeedbackMode(b.feedback_mode);
       setSlug(b.slug);
+      setCategory(b.category);
 
       setAnalytics(await analyticsRes.json());
       const customersData = await customersRes.json();
@@ -107,6 +110,7 @@ export default function AdminClientDetailPage() {
           googleReviewsUrl,
           feedbackMode,
           slug,
+          category,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -271,6 +275,23 @@ export default function AdminClientDetailPage() {
             <Field label="Location" value={location} onChange={setLocation} />
             <Field label="Slug" value={slug} onChange={setSlug} mono />
             <Field label="Google Reviews URL" value={googleReviewsUrl} onChange={setGoogleReviewsUrl} />
+          </div>
+          <div className="space-y-2">
+            <label className="text-xs font-black uppercase tracking-widest text-slate-400">Service Category</label>
+            <select
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              className="w-full bg-slate-50 border-2 border-slate-50 rounded-xl px-4 py-3 text-sm font-medium focus:bg-white focus:border-purple-200 focus:ring-4 focus:ring-purple-50 outline-none transition-all"
+            >
+              {BUSINESS_CATEGORIES.map((c) => (
+                <option key={c.slug} value={c.slug}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-slate-400 font-medium">
+              Determines which review-writing style is used for this client&apos;s AI reviews.
+            </p>
           </div>
           <div className="space-y-3">
             <label className="text-xs font-black uppercase tracking-widest text-slate-400">Feedback Mode</label>

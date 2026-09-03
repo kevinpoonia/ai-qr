@@ -24,11 +24,13 @@ async function ensureSchema(sql: NeonQueryFunction<false, false>): Promise<void>
       google_reviews_url TEXT NOT NULL DEFAULT '',
       feedback_mode TEXT NOT NULL DEFAULT 'gated',
       status TEXT NOT NULL DEFAULT 'active',
+      category TEXT NOT NULL DEFAULT 'general',
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )
   `;
 
   await sql`ALTER TABLE businesses ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'active'`;
+  await sql`ALTER TABLE businesses ADD COLUMN IF NOT EXISTS category TEXT NOT NULL DEFAULT 'general'`;
 
   await sql`
     CREATE TABLE IF NOT EXISTS users (

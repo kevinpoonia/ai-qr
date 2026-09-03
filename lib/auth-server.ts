@@ -65,13 +65,14 @@ export async function createBusinessWithOwner(
   businessName: string,
   email: string,
   password: string,
-  location: string = ""
+  location: string = "",
+  category: string = "general"
 ): Promise<{ businessId: number; userId: number; slug: string }> {
   const sql = await db();
   const slug = await generateUniqueSlug(slugify(businessName));
 
   const bizRows = await sql`
-    INSERT INTO businesses (name, slug, location) VALUES (${businessName}, ${slug}, ${location})
+    INSERT INTO businesses (name, slug, location, category) VALUES (${businessName}, ${slug}, ${location}, ${category})
     RETURNING id
   `;
   const businessId = Number((bizRows[0] as { id: number }).id);
@@ -104,7 +105,7 @@ export async function createStaffUser(
 export async function findBusinessById(id: number): Promise<AdminBusiness | undefined> {
   const sql = await db();
   const rows = await sql`
-    SELECT b.id, b.name, b.slug, b.location, b.google_reviews_url, b.feedback_mode, b.status, b.created_at,
+    SELECT b.id, b.name, b.slug, b.location, b.google_reviews_url, b.feedback_mode, b.status, b.category, b.created_at,
            (SELECT email FROM users WHERE business_id = b.id AND role = 'owner' ORDER BY id ASC LIMIT 1) AS owner_email
     FROM businesses b
     WHERE b.id = ${id}
@@ -114,13 +115,20 @@ export async function findBusinessById(id: number): Promise<AdminBusiness | unde
 
 export async function updateBusinessById(
   id: number,
-  fields: { name: string; location: string; googleReviewsUrl: string; feedbackMode: FeedbackMode; slug: string }
+  fields: {
+    name: string;
+    location: string;
+    googleReviewsUrl: string;
+    feedbackMode: FeedbackMode;
+    slug: string;
+    category: string;
+  }
 ): Promise<AdminBusiness | undefined> {
   const sql = await db();
   await sql`
     UPDATE businesses SET
       name = ${fields.name}, location = ${fields.location}, google_reviews_url = ${fields.googleReviewsUrl},
-      feedback_mode = ${fields.feedbackMode}, slug = ${fields.slug}
+      feedback_mode = ${fields.feedbackMode}, slug = ${fields.slug}, category = ${fields.category}
     WHERE id = ${id}
   `;
   return findBusinessById(id);

@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { getSessionContext } from "@/lib/session";
 import { findBusinessById, isSlugTaken, slugify, updateBusinessById } from "@/lib/auth-server";
 import { logAdminAction } from "@/lib/auditLog";
+import { BUSINESS_CATEGORIES } from "@/lib/categories";
 
 function parseId(idParam: string): number | null {
   const id = Number(idParam);
@@ -53,7 +54,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const { businessName, location, googleReviewsUrl, feedbackMode, slug } = body as Record<
+  const { businessName, location, googleReviewsUrl, feedbackMode, slug, category } = body as Record<
     string,
     unknown
   >;
@@ -62,6 +63,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const url = typeof googleReviewsUrl === "string" ? googleReviewsUrl.trim() : existing.google_reviews_url;
   const mode = feedbackMode === "open" ? "open" : feedbackMode === "gated" ? "gated" : existing.feedback_mode;
   const cleanSlug = typeof slug === "string" && slug.trim() ? slugify(slug.trim()) : existing.slug;
+  const cleanCategory =
+    typeof category === "string" && BUSINESS_CATEGORIES.some((c) => c.slug === category)
+      ? category
+      : existing.category;
 
   if (!name) {
     return NextResponse.json({ error: "Business name is required" }, { status: 400 });
@@ -83,6 +88,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     googleReviewsUrl: url,
     feedbackMode: mode,
     slug: cleanSlug,
+    category: cleanCategory,
   });
 
   await logAdminAction(session.userId, "edit_client", id, name);
