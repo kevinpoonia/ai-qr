@@ -1,5 +1,5 @@
 export type FeedbackMode = "gated" | "open";
-export type Role = "owner" | "staff";
+export type Role = "owner" | "staff" | "platform_admin";
 
 export interface Business {
   id: number;
@@ -8,6 +8,17 @@ export interface Business {
   google_reviews_url: string;
   feedback_mode: FeedbackMode;
   created_at: string;
+}
+
+export interface AdminBusiness {
+  id: number;
+  name: string;
+  slug: string;
+  location: string;
+  google_reviews_url: string;
+  feedback_mode: FeedbackMode;
+  created_at: string;
+  owner_email: string | null;
 }
 
 export interface TeamMember {

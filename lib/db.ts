@@ -30,7 +30,7 @@ async function ensureSchema(sql: NeonQueryFunction<false, false>): Promise<void>
   await sql`
     CREATE TABLE IF NOT EXISTS users (
       id SERIAL PRIMARY KEY,
-      business_id INTEGER NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+      business_id INTEGER REFERENCES businesses(id) ON DELETE CASCADE,
       email TEXT NOT NULL UNIQUE,
       password_hash TEXT NOT NULL,
       password_salt TEXT NOT NULL,
@@ -38,6 +38,10 @@ async function ensureSchema(sql: NeonQueryFunction<false, false>): Promise<void>
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )
   `;
+
+  // Platform admins (role='platform_admin') aren't scoped to a business, so the
+  // column has to be nullable. Safe to re-run: a no-op once already dropped.
+  await sql`ALTER TABLE users ALTER COLUMN business_id DROP NOT NULL`;
 
   await sql`
     CREATE TABLE IF NOT EXISTS customers (

@@ -32,9 +32,25 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
+  const isAdminRoute = pathname.startsWith("/admin") || pathname.startsWith("/api/admin");
+  const isAuthRoute = pathname.startsWith("/api/auth/");
+
+  if (session.role === "platform_admin") {
+    if (!isAdminRoute && !isAuthRoute) {
+      return NextResponse.redirect(new URL("/admin", request.url));
+    }
+  } else if (isAdminRoute) {
+    if (pathname.startsWith("/api")) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+    return NextResponse.redirect(new URL("/", request.url));
+  }
+
   const headers = new Headers(request.headers);
   headers.set("x-user-id", String(session.userId));
-  headers.set("x-business-id", String(session.businessId));
+  if (session.businessId !== null) {
+    headers.set("x-business-id", String(session.businessId));
+  }
   headers.set("x-user-role", session.role);
 
   return NextResponse.next({ request: { headers } });

@@ -8,7 +8,7 @@ export const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 7; // 7 days
 
 export interface SessionPayload {
   userId: number;
-  businessId: number;
+  businessId: number | null;
   role: Role;
   exp: number;
 }
@@ -70,7 +70,8 @@ export async function verifySessionToken(
 
     const payload = JSON.parse(decoder.decode(base64UrlDecode(payloadStr))) as SessionPayload;
     if (typeof payload.exp !== "number" || payload.exp <= Date.now()) return null;
-    if (typeof payload.userId !== "number" || typeof payload.businessId !== "number") return null;
+    if (typeof payload.userId !== "number") return null;
+    if (payload.businessId !== null && typeof payload.businessId !== "number") return null;
 
     return payload;
   } catch {

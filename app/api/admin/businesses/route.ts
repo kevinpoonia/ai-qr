@@ -1,30 +1,29 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getSessionContext } from "@/lib/session";
-import { createStaffUser, findUserByEmail } from "@/lib/auth-server";
+import { createBusinessWithOwner, findUserByEmail } from "@/lib/auth-server";
 
 export async function GET(request: Request) {
   const session = getSessionContext(request);
-  if (!session) {
+  if (!session || session.role !== "platform_admin") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const sql = await db();
   const rows = await sql`
-    SELECT id, email, role, created_at FROM users
-    WHERE business_id = ${session.businessId} ORDER BY created_at ASC
+    SELECT b.id, b.name, b.slug, b.location, b.google_reviews_url, b.feedback_mode, b.created_at,
+           (SELECT email FROM users WHERE business_id = b.id AND role = 'owner' ORDER BY id ASC LIMIT 1) AS owner_email
+    FROM businesses b
+    ORDER BY b.created_at DESC
   `;
 
-  return NextResponse.json({ users: rows });
+  return NextResponse.json({ businesses: rows });
 }
 
 export async function POST(request: Request) {
   const session = getSessionContext(request);
-  if (!session) {
+  if (!session || session.role !== "platform_admin") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  if (session.role !== "owner" || session.businessId === null) {
-    return NextResponse.json({ error: "Only the owner can add team members" }, { status: 403 });
   }
 
   let body: unknown;
@@ -34,10 +33,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const { email, password } = body as Record<string, unknown>;
+  const { businessName, location, email, password } = body as Record<string, unknown>;
+  const cleanBusinessName = typeof businessName === "string" ? businessName.trim() : "";
+  const cleanLocation = typeof location === "string" ? location.trim() : "";
   const cleanEmail = typeof email === "string" ? email.trim().toLowerCase() : "";
   const cleanPassword = typeof password === "string" ? password : "";
 
+  if (!cleanBusinessName) {
+    return NextResponse.json({ error: "Business name is required" }, { status: 400 });
+  }
   if (!cleanEmail.includes("@") || cleanEmail.length < 5) {
     return NextResponse.json({ error: "A valid email is required" }, { status: 400 });
   }
@@ -49,6 +53,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "An account with that email already exists" }, { status: 409 });
   }
 
-  const { userId } = await createStaffUser(session.businessId, cleanEmail, cleanPassword);
-  return NextResponse.json({ id: userId, email: cleanEmail, role: "staff" }, { status: 201 });
+  const { businessId, slug } = await createBusinessWithOwner(
+    cleanBusinessName,
+    cleanEmail,
+    cleanPassword,
+    cleanLocation
+  );
+
+  return NextResponse.json({ id: businessId, slug }, { status: 201 });
 }

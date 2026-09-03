@@ -4,7 +4,7 @@ import type { Role } from "./types";
 
 interface UserRow {
   id: number;
-  business_id: number;
+  business_id: number | null;
   email: string;
   password_hash: string;
   password_salt: string;
